@@ -68,9 +68,8 @@
                         body: formData
                     })
                     .then(response => {
-                        if (response.ok) {
-                        } else {
-                            alert("File upload failed.");
+                        if (response.redirected) {
+                            window.location.href = response.url;
                         }
                     })
                     .catch(error => {
