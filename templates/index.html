@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>File Upload</title>
+    
+    <style>
+        body, html {
+            height: 100%;
+            margin: 0;
+        }
+
+        .full-page-drop-area {
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            height: 100%;
+            border: 2px dashed #ccc;
+            text-align: center;
+        }
+
+        .drag-over {
+            border-color: #007bff;
+        }
+    </style>
+</head>
+<body>
+    <div id="drop-area" class="full-page-drop-area">
+        <p>drop shit</p>
+    </div>
+
+    <script>
+        document.addEventListener("DOMContentLoaded", () => {
+            const dropArea = document.getElementById("drop-area");
+            const fileInput = document.getElementById("fileInput");
+
+            dropArea.addEventListener("dragover", (e) => {
+                e.preventDefault();
+                dropArea.classList.add("drag-over");
+            });
+
+            dropArea.addEventListener("dragleave", () => {
+                dropArea.classList.remove("drag-over");
+            });
+
+            dropArea.addEventListener("drop", (e) => {
+                e.preventDefault();
+                dropArea.classList.remove("drag-over");
+                
+                const file = e.dataTransfer.files[0];
+                handleFileUpload(file);
+            });
+
+            fileInput.addEventListener("change", () => {
+                const file = fileInput.files[0];
+                handleFileUpload(file);
+            });
+
+            function handleFileUpload(file) {
+                if (file) {
+                    const formData = new FormData();
+                    formData.append("file", file);
+
+                    fetch("http://localhost:8080/upload", {
+                        method: "POST",
+                        body: formData
+                    })
+                    .then(response => {
+                        if (response.ok) {
+                        } else {
+                            alert("File upload failed.");
+                        }
+                    })
+                    .catch(error => {
+                        console.error("Error:", error);
+                    });
+                }
+            }
+        });
+    </script>
+</body>
+</html>
