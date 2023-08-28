@@ -1,102 +1,107 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>File Upload</title>
 
     <style>
-        body, html {
-            height: 100%;
-            margin: 0;
-        }
+      body,
+      html {
+        height: 100%;
+        margin: 0;
+      }
 
-        .full-page-drop-area {
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-            align-items: center;
-            height: 100%;
-            border: 2px dashed #ccc;
-            text-align: center;
-        }
+      .full-page-drop-area {
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        height: 100%;
+        border: 2px dashed #ccc;
+        text-align: center;
+      }
 
-        .drag-over {
-            border-color: #007bff;
-        }
+      .drag-over {
+        border-color: #007bff;
+      }
     </style>
-</head>
-<body>
+  </head>
+  <body>
     <div id="drop-area" class="full-page-drop-area">
-        <p>drop shit</p>
+      <p>drop shit</p>
     </div>
 
     <script>
-        document.addEventListener("DOMContentLoaded", () => {
-            const dropArea = document.getElementById("drop-area");
+      document.addEventListener("DOMContentLoaded", () => {
+        const dropArea = document.getElementById("drop-area");
 
-            dropArea.addEventListener("dragover", (e) => {
-                e.preventDefault();
-                dropArea.classList.add("drag-over");
-            });
-
-            dropArea.addEventListener("dragleave", () => {
-                dropArea.classList.remove("drag-over");
-            });
-
-            dropArea.addEventListener("drop", (e) => {
-                e.preventDefault();
-                dropArea.classList.remove("drag-over");
-
-                const file = e.dataTransfer.files[0];
-                handleFileUpload(file);
-            });
-
-            document.addEventListener("paste", event => {
-              const clipboardData = event.clipboardData || window.clipboardData;
-
-              // handle image
-              const imageItem = Array.from(clipboardData.items).find(item => item.type.includes("image"));
-              if (imageItem) {
-                handleFileUpload(imageItem.getAsFile());
-              }
-
-              // handle url
-              const text = clipboardData.getData("text");
-              if (text.startsWith("http://") || text.startsWith("https://")) {
-                handleURLUpload(text);
-              }
-            });
-
-            async function handleURLUpload(url) {
-                const urlResponse = await fetch(url);
-                const imageBlob = await urlResponse.blob();
-                const urlParts = url.split('/');
-                const filename = urlParts[urlParts.length - 1];
-                const imageFile = new File([imageBlob], filename, { type: imageBlob.type });
-                handleFileUpload(imageFile);
-            }
-
-            function handleFileUpload(file) {
-                if (file) {
-                    const formData = new FormData();
-                    formData.append("file", file);
-
-                    fetch("http://localhost:8080/upload", {
-                        method: "POST",
-                        body: formData
-                    })
-                    .then(response => {
-                        if (response.redirected) {
-                            window.location.href = response.url;
-                        }
-                    })
-                    .catch(error => {
-                        console.error("Error:", error);
-                    });
-                }
-            }
+        dropArea.addEventListener("dragover", (e) => {
+          e.preventDefault();
+          dropArea.classList.add("drag-over");
         });
+
+        dropArea.addEventListener("dragleave", () => {
+          dropArea.classList.remove("drag-over");
+        });
+
+        dropArea.addEventListener("drop", (e) => {
+          e.preventDefault();
+          dropArea.classList.remove("drag-over");
+
+          const file = e.dataTransfer.files[0];
+          handleFileUpload(file);
+        });
+
+        document.addEventListener("paste", (event) => {
+          const clipboardData = event.clipboardData || window.clipboardData;
+
+          // handle image
+          const imageItem = Array.from(clipboardData.items).find((item) =>
+            item.type.includes("image"),
+          );
+          if (imageItem) {
+            handleFileUpload(imageItem.getAsFile());
+          }
+
+          // handle url
+          const text = clipboardData.getData("text");
+          if (text.startsWith("http://") || text.startsWith("https://")) {
+            handleURLUpload(text);
+          }
+        });
+
+        async function handleURLUpload(url) {
+          const urlResponse = await fetch(url);
+          const imageBlob = await urlResponse.blob();
+          const urlParts = url.split("/");
+          const filename = urlParts[urlParts.length - 1];
+          const imageFile = new File([imageBlob], filename, {
+            type: imageBlob.type,
+          });
+          handleFileUpload(imageFile);
+        }
+
+        function handleFileUpload(file) {
+          if (file) {
+            const formData = new FormData();
+            formData.append("file", file);
+
+            fetch("http://localhost:8080/upload", {
+              method: "POST",
+              body: formData,
+            })
+              .then((response) => {
+                if (response.redirected) {
+                  window.location.href = response.url;
+                }
+              })
+              .catch((error) => {
+                console.error("Error:", error);
+              });
+          }
+        }
+      });
     </script>
-</body>
+  </body>
 </html>
