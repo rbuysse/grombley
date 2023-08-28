@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>File Upload</title>
-    
+
     <style>
         body, html {
             height: 100%;
@@ -34,7 +34,6 @@
     <script>
         document.addEventListener("DOMContentLoaded", () => {
             const dropArea = document.getElementById("drop-area");
-            const fileInput = document.getElementById("fileInput");
 
             dropArea.addEventListener("dragover", (e) => {
                 e.preventDefault();
@@ -48,14 +47,11 @@
             dropArea.addEventListener("drop", (e) => {
                 e.preventDefault();
                 dropArea.classList.remove("drag-over");
-                
+
                 const file = e.dataTransfer.files[0];
                 handleFileUpload(file);
             });
 
-            fileInput.addEventListener("change", () => {
-                const file = fileInput.files[0];
-                handleFileUpload(file);
             });
 
             function handleFileUpload(file) {
