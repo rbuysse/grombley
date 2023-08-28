@@ -95,7 +95,7 @@ func uploadHandler(w http.ResponseWriter, r *http.Request) {
 
     // fmt.Fprintln(w, "File uploaded successfully:", handler.Filename)
     // http.Redirect(w, r, "http://localhost:8080/" + genfilename, http.StatusSeeOther)
-    http.Redirect(w, r, "http://localhost:8080/fronc", http.StatusSeeOther)
+    http.Redirect(w, r, "/fronc", http.StatusSeeOther)
 }
 
 func randfilename(n int, f string) string {
