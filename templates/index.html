@@ -52,7 +52,30 @@
                 handleFileUpload(file);
             });
 
+            document.addEventListener("paste", event => {
+              const clipboardData = event.clipboardData || window.clipboardData;
+
+              // handle image
+              const imageItem = Array.from(clipboardData.items).find(item => item.type.includes("image"));
+              if (imageItem) {
+                handleFileUpload(imageItem.getAsFile());
+              }
+
+              // handle url
+              const text = clipboardData.getData("text");
+              if (text.startsWith("http://") || text.startsWith("https://")) {
+                handleURLUpload(text);
+              }
             });
+
+            async function handleURLUpload(url) {
+                const urlResponse = await fetch(url);
+                const imageBlob = await urlResponse.blob();
+                const urlParts = url.split('/');
+                const filename = urlParts[urlParts.length - 1];
+                const imageFile = new File([imageBlob], filename, { type: imageBlob.type });
+                handleFileUpload(imageFile);
+            }
 
             function handleFileUpload(file) {
                 if (file) {
