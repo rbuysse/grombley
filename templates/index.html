@@ -71,15 +71,24 @@
           }
         });
 
+        function handleResponse(response) {
+          if (response.redirected) {
+            window.location.href = response.url;
+          }
+        }
+
         async function handleURLUpload(url) {
-          const urlResponse = await fetch(url);
-          const imageBlob = await urlResponse.blob();
-          const urlParts = url.split("/");
-          const filename = urlParts[urlParts.length - 1];
-          const imageFile = new File([imageBlob], filename, {
-            type: imageBlob.type,
-          });
-          handleFileUpload(imageFile);
+          fetch("http://localhost:8080/url", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({ url: url }),
+          })
+            .then(handleResponse)
+            .catch((error) => {
+              console.error("Error:", error);
+            });
         }
 
         function handleFileUpload(file) {
@@ -91,11 +100,7 @@
               method: "POST",
               body: formData,
             })
-              .then((response) => {
-                if (response.redirected) {
-                  window.location.href = response.url;
-                }
-              })
+              .then(handleResponse)
               .catch((error) => {
                 console.error("Error:", error);
               });
