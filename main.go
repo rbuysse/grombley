@@ -2,12 +2,14 @@ package main
 
 import (
 	"embed"
+	"encoding/json"
 	"fmt"
 	"html/template"
 	"io"
 	"log"
 	"math/rand"
 	"net/http"
+	"net/url"
 	"os"
 	"strings"
 	"time"
@@ -33,6 +35,7 @@ func main() {
 
 	// Create a new HTTP router
 	http.HandleFunc("/upload", uploadHandler)
+	http.HandleFunc("/url", handleUrlUpload)
 	http.HandleFunc("/foo", redirectHandler)
 	http.HandleFunc("/fronc", froncHandler)
 	http.HandleFunc("/", indexHandler)
@@ -73,9 +76,33 @@ func uploadHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	defer file.Close()
 
-	// Create or open a new file in the desired directory
-	// Replace "/path/to/your/directory" with your actual directory path
-	genfilename := randfilename(6, handler.Filename)
+	writeFileAndRedirect(w, r, file, handler.Filename)
+}
+
+func handleUrlUpload(w http.ResponseWriter, r *http.Request) {
+	var requestBody map[string]string
+	json.NewDecoder(r.Body).Decode(&requestBody)
+	urlString := requestBody["url"]
+
+	resp, err := http.Get(urlString)
+	if err != nil {
+		return
+	}
+	defer resp.Body.Close()
+
+	parsedUrl, err := url.Parse(urlString)
+	if err != nil {
+		return
+	}
+
+	parts := strings.Split(parsedUrl.Path, "/")
+	filename := parts[len(parts)-1]
+
+	writeFileAndRedirect(w, r, resp.Body, filename)
+}
+
+func writeFileAndRedirect(w http.ResponseWriter, r *http.Request, file io.Reader, filename string) {
+	genfilename := randfilename(6, filename)
 	newFile, err := os.Create("./uploads/" + genfilename)
 	if err != nil {
 		fmt.Println("Error creating the file:", err)
@@ -84,7 +111,6 @@ func uploadHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	defer newFile.Close()
 
-	// Copy the uploaded file data to the new file
 	_, err = io.Copy(newFile, file)
 	if err != nil {
 		fmt.Println("Error copying file data:", err)
@@ -92,8 +118,6 @@ func uploadHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// fmt.Fprintln(w, "File uploaded successfully:", handler.Filename)
-	// http.Redirect(w, r, "http://localhost:8080/" + genfilename, http.StatusSeeOther)
 	http.Redirect(w, r, "/fronc", http.StatusSeeOther)
 }
 
