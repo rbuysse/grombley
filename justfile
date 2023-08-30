@@ -1,3 +1,5 @@
+alL: run
+
 build:
   go build
 
@@ -15,3 +17,7 @@ fmt:
 
 fix-fmt:
   gofmt -w -s .
+
+run:
+  go run main.go
+
