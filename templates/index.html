@@ -78,7 +78,7 @@
         }
 
         async function handleURLUpload(url) {
-          fetch("http://localhost:8080/url", {
+          fetch("/url", {
             method: "POST",
             headers: {
               "Content-Type": "application/json",
@@ -96,7 +96,7 @@
             const formData = new FormData();
             formData.append("file", file);
 
-            fetch("http://localhost:8080/upload", {
+            fetch("/upload", {
               method: "POST",
               body: formData,
             })
