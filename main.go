@@ -13,24 +13,34 @@ import (
 	"os"
 	"strings"
 	"time"
+
+	"github.com/BurntSushi/toml"
 )
+
+type Config struct {
+	Port       string `toml:"port"`
+	UploadPath string `toml:"upload_path"`
+}
+
+var config Config
 
 //go:embed templates
 var templatesFolder embed.FS
 
-const (
-	uploadPath    = "./uploads/"    // Change this to your desired upload folder path
-	maxUploadSize = 5 * 1024 * 1024 // 5 MB, adjust as needed
-)
-
 func init() {
+	_, err := toml.DecodeFile("config.toml", &config)
+	if err != nil {
+		log.Fatalf("Error in parsing config file: %v", err)
+		os.Exit(1)
+	}
+
 	rand.Seed(time.Now().UnixNano())
 }
 
 func main() {
 	// Create the upload directory if it doesn't exist
-	if _, err := os.Stat(uploadPath); os.IsNotExist(err) {
-		os.MkdirAll(uploadPath, os.ModePerm)
+	if _, err := os.Stat(config.UploadPath); os.IsNotExist(err) {
+		os.MkdirAll(config.UploadPath, os.ModePerm)
 	}
 
 	// Create a new HTTP router
@@ -41,7 +51,7 @@ func main() {
 	http.HandleFunc("/", indexHandler)
 
 	// Define the port you want the server to listen on
-	port := ":8080" // Change this to your desired port
+	port := config.Port // Change this to your desired port
 
 	fmt.Printf("Server is running on port %s\n", port)
 	log.Fatal(http.ListenAndServe(port, nil))
@@ -103,7 +113,7 @@ func handleUrlUpload(w http.ResponseWriter, r *http.Request) {
 
 func writeFileAndRedirect(w http.ResponseWriter, r *http.Request, file io.Reader, filename string) {
 	genfilename := randfilename(6, filename)
-	newFile, err := os.Create("./uploads/" + genfilename)
+	newFile, err := os.Create(config.UploadPath + genfilename)
 	if err != nil {
 		fmt.Println("Error creating the file:", err)
 		http.Error(w, "Error creating the file", http.StatusInternalServerError)
