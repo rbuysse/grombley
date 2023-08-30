@@ -22,6 +22,11 @@
         text-align: center;
       }
 
+      #browse {
+        color: blue;
+        cursor: pointer;
+      }
+
       .drag-over {
         border-color: #007bff;
       }
@@ -29,12 +34,22 @@
   </head>
   <body>
     <div id="drop-area" class="full-page-drop-area">
-      <p>drop shit</p>
+      <p>drop shit or <span id="browse">click this</span></p>
+      <input type="file" id="file-input" style="display: none" />
     </div>
 
     <script>
       document.addEventListener("DOMContentLoaded", () => {
         const dropArea = document.getElementById("drop-area");
+        const fileInputField = document.getElementById("file-input");
+
+        document.getElementById("browse").addEventListener("click", (e) => {
+          fileInputField.click();
+        });
+
+        fileInputField.addEventListener("change", (e) => {
+          handleFileUpload(fileInputField.files[0]);
+        });
 
         dropArea.addEventListener("dragover", (e) => {
           e.preventDefault();
