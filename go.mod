@@ -3,6 +3,7 @@ module github.com/rbuysse/image-uploader
 go 1.19
 
 require (
+	github.com/BurntSushi/toml v1.3.2 // indirect
 	github.com/disintegration/imaging v1.6.2 // indirect
 	github.com/dsoprea/go-exif/v3 v3.0.1 // indirect
 	github.com/dsoprea/go-logging v0.0.0-20200710184922-b02d349568dd // indirect
