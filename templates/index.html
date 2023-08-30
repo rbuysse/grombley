@@ -77,34 +77,32 @@
           }
         }
 
+        async function fetchRequest(path, options) {
+          try {
+            const response = await fetch(path, options);
+            handleResponse(response);
+          } catch (error) {
+            console.error("Error:", error);
+          }
+        }
+
+        function handleFileUpload(file) {
+          const formData = new FormData();
+          formData.append("file", file);
+          fetchRequest("/upload", {
+            method: "POST",
+            body: formData,
+          });
+        }
+
         async function handleURLUpload(url) {
-          fetch("/url", {
+          fetchRequest("/url", {
             method: "POST",
             headers: {
               "Content-Type": "application/json",
             },
             body: JSON.stringify({ url: url }),
-          })
-            .then(handleResponse)
-            .catch((error) => {
-              console.error("Error:", error);
-            });
-        }
-
-        function handleFileUpload(file) {
-          if (file) {
-            const formData = new FormData();
-            formData.append("file", file);
-
-            fetch("/upload", {
-              method: "POST",
-              body: formData,
-            })
-              .then(handleResponse)
-              .catch((error) => {
-                console.error("Error:", error);
-              });
-          }
+          });
         }
       });
     </script>
