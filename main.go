@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"embed"
 	"encoding/json"
 	"fmt"
@@ -15,6 +16,7 @@ import (
 	"time"
 
 	"github.com/BurntSushi/toml"
+	"github.com/scottleedavis/go-exif-remove"
 )
 
 type Config struct {
@@ -73,6 +75,25 @@ func indexHandler(w http.ResponseWriter, r *http.Request) {
 	tmpl.Execute(w, nil)
 }
 
+func RemoveEXIF(input io.Reader) (io.Reader, error) {
+	// Read the input data into a []byte
+	inputData, err := io.ReadAll(input)
+	if err != nil {
+		return nil, err
+	}
+
+	// Remove EXIF data
+	processedData, err := exifremove.Remove(inputData)
+	if err != nil {
+		return nil, err
+	}
+
+	// Create a new io.Reader from the processed data
+	output := bytes.NewReader(processedData)
+
+	return output, nil
+}
+
 func uploadHandler(w http.ResponseWriter, r *http.Request) {
 	// Parse the multipart form data with a specified max memory limit (in bytes)
 	r.ParseMultipartForm(10 << 20) // 10 MB max in-memory size
@@ -121,7 +142,9 @@ func writeFileAndRedirect(w http.ResponseWriter, r *http.Request, file io.Reader
 	}
 	defer newFile.Close()
 
-	_, err = io.Copy(newFile, file)
+	fileNoExif, err := RemoveEXIF(file)
+
+	_, err = io.Copy(newFile, fileNoExif)
 	if err != nil {
 		fmt.Println("Error copying file data:", err)
 		http.Error(w, "Error copying file data", http.StatusInternalServerError)
