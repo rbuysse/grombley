@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -19,6 +20,7 @@ import (
 
 type Config struct {
 	Port       string `toml:"port"`
+	ServePath  string `toml:"serve_path"`
 	UploadPath string `toml:"upload_path"`
 }
 
@@ -48,6 +50,7 @@ func main() {
 	http.HandleFunc("/url", handleUrlUpload)
 	http.HandleFunc("/foo", redirectHandler)
 	http.HandleFunc("/fronc", froncHandler)
+	http.HandleFunc("/i/", serveImageHandler)
 	http.HandleFunc("/", indexHandler)
 
 	// Define the port you want the server to listen on
@@ -57,12 +60,52 @@ func main() {
 	log.Fatal(http.ListenAndServe(port, nil))
 }
 
+func getContentType(filename string) string {
+	switch filepath.Ext(filename) {
+	case ".jpg", ".jpeg":
+		return "image/jpeg"
+	case ".png":
+		return "image/png"
+	case ".gif":
+		return "image/gif"
+	default:
+		return "application/octet-stream"
+	}
+}
+
 func froncHandler(w http.ResponseWriter, r *http.Request) {
 	io.WriteString(w, "we fronc!\n")
 }
 
 func redirectHandler(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "https://piss.es/", http.StatusSeeOther)
+}
+
+func serveImageHandler(w http.ResponseWriter, r *http.Request) {
+	// Extract the requested image filename from the URL.
+	imageName := filepath.Base(r.URL.Path)
+
+	// Construct the full path to the image file.
+	imagePath := filepath.Join(config.UploadPath, imageName)
+
+	// Open the image file.
+	imageFile, err := os.Open(imagePath)
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+	defer imageFile.Close()
+
+	// Set the Content-Type header based on the file extension.
+	contentType := getContentType(imageName)
+	w.Header().Set("Content-Type", contentType)
+
+	// Copy the file data to the response writer.
+	_, err = io.Copy(w, imageFile)
+	if err != nil {
+		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+		return
+	}
 }
 
 func indexHandler(w http.ResponseWriter, r *http.Request) {
@@ -128,7 +171,7 @@ func writeFileAndRedirect(w http.ResponseWriter, r *http.Request, file io.Reader
 		return
 	}
 
-	http.Redirect(w, r, "/fronc", http.StatusSeeOther)
+	http.Redirect(w, r, "/i/"+genfilename, http.StatusSeeOther)
 }
 
 func randfilename(n int, f string) string {
