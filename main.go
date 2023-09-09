@@ -71,6 +71,24 @@ func getContentType(filename string) string {
 	}
 }
 
+func indexHandler(w http.ResponseWriter, r *http.Request) {
+	tmpl, err := template.ParseFS(templatesFolder, "templates/index.html")
+	if err != nil {
+		log.Fatal(err)
+	}
+	tmpl.Execute(w, nil)
+}
+
+func randfilename(n int, f string) string {
+	letterRunes := []rune("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ")
+	b := make([]rune, n)
+	for i := range b {
+		b[i] = letterRunes[rand.Intn(len(letterRunes))]
+	}
+	extension := strings.Split(f, ".")[1]
+	return string(b) + "." + extension
+}
+
 func serveImageHandler(w http.ResponseWriter, r *http.Request) {
 	// Extract the requested image filename from the URL.
 	imageName := filepath.Base(r.URL.Path)
@@ -96,14 +114,6 @@ func serveImageHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 		return
 	}
-}
-
-func indexHandler(w http.ResponseWriter, r *http.Request) {
-	tmpl, err := template.ParseFS(templatesFolder, "templates/index.html")
-	if err != nil {
-		log.Fatal(err)
-	}
-	tmpl.Execute(w, nil)
 }
 
 func uploadHandler(w http.ResponseWriter, r *http.Request) {
@@ -162,14 +172,4 @@ func writeFileAndRedirect(w http.ResponseWriter, r *http.Request, file io.Reader
 	}
 
 	http.Redirect(w, r, "/i/"+genfilename, http.StatusSeeOther)
-}
-
-func randfilename(n int, f string) string {
-	letterRunes := []rune("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ")
-	b := make([]rune, n)
-	for i := range b {
-		b[i] = letterRunes[rand.Intn(len(letterRunes))]
-	}
-	extension := strings.Split(f, ".")[1]
-	return string(b) + "." + extension
 }
