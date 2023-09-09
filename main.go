@@ -48,8 +48,6 @@ func main() {
 	// Create a new HTTP router
 	http.HandleFunc("/upload", uploadHandler)
 	http.HandleFunc("/url", handleUrlUpload)
-	http.HandleFunc("/foo", redirectHandler)
-	http.HandleFunc("/fronc", froncHandler)
 	http.HandleFunc("/i/", serveImageHandler)
 	http.HandleFunc("/", indexHandler)
 
@@ -71,14 +69,6 @@ func getContentType(filename string) string {
 	default:
 		return "application/octet-stream"
 	}
-}
-
-func froncHandler(w http.ResponseWriter, r *http.Request) {
-	io.WriteString(w, "we fronc!\n")
-}
-
-func redirectHandler(w http.ResponseWriter, r *http.Request) {
-	http.Redirect(w, r, "https://piss.es/", http.StatusSeeOther)
 }
 
 func serveImageHandler(w http.ResponseWriter, r *http.Request) {
