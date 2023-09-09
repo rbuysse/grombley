@@ -25,3 +25,8 @@ jobs:
 
       - name: Build project
         run: just build
+
+      - uses: actions/upload-artifact@v3
+        with:
+          name: image-uploader
+          path: ./image-uploader
