@@ -47,7 +47,7 @@ func main() {
 
 	// Create a new HTTP router
 	http.HandleFunc("/upload", uploadHandler)
-	http.HandleFunc("/url", handleUrlUpload)
+	http.HandleFunc("/url", urlUploadHandler)
 	http.HandleFunc("/i/", serveImageHandler)
 	http.HandleFunc("/", indexHandler)
 
@@ -122,7 +122,7 @@ func uploadHandler(w http.ResponseWriter, r *http.Request) {
 	writeFileAndRedirect(w, r, file, handler.Filename)
 }
 
-func handleUrlUpload(w http.ResponseWriter, r *http.Request) {
+func urlUploadHandler(w http.ResponseWriter, r *http.Request) {
 	var requestBody map[string]string
 	json.NewDecoder(r.Body).Decode(&requestBody)
 	urlString := requestBody["url"]
