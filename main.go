@@ -155,6 +155,7 @@ func urlUploadHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func writeFileAndRedirect(w http.ResponseWriter, r *http.Request, file io.Reader, filename string) {
+	filename = strings.ToLower(filename)
 	genfilename := randfilename(6, filename)
 	newFile, err := os.Create(config.UploadPath + genfilename)
 	if err != nil {
