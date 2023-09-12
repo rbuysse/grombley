@@ -1,0 +1,27 @@
+version: "3.7"
+
+services:
+
+  grombley:
+    build:
+      context: ../
+      dockerfile: grombley.dockerfile
+    image: grombley
+    expose:
+      - 3000
+    command:
+      "/image-uploader"
+
+  test:
+    build:
+      context: ../
+      dockerfile: tests/Dockerfile
+    image: grombley-test
+    command: |
+      sh -c "
+        IMAGELOC=$$( \
+           curl -s -D - -F 'file=@/tmp/test.jpg' grombley:3000/upload | \
+           grep Location | \
+           awk {'print $$2'}) \
+        && curl --fail-with-body -s -I grombley:3000$$IMAGELOC
+      "
