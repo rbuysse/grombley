@@ -12,16 +12,10 @@ services:
     command:
       "/image-uploader"
 
-  test:
+  test-image-upload:
     build:
       context: ../
       dockerfile: tests/Dockerfile
     image: grombley-test
     command: |
-      sh -c "
-        IMAGELOC=$$( \
-           curl -s -D - -F 'file=@/tmp/test.jpg' grombley:3000/upload | \
-           grep Location | \
-           awk {'print $$2'}) \
-        && curl --fail-with-body -s -I grombley:3000$$IMAGELOC
-      "
+      sh -c "/tmp/test-image-upload.sh"

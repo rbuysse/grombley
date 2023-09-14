@@ -5,3 +5,4 @@ RUN apk update \
     curl
 
 COPY tests/test.jpg /tmp
+COPY tests/scripts/* /tmp/
