@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"path"
 	"path/filepath"
 	"strings"
 	"time"
@@ -85,8 +86,8 @@ func randfilename(n int, f string) string {
 	for i := range b {
 		b[i] = letterRunes[rand.Intn(len(letterRunes))]
 	}
-	extension := strings.Split(f, ".")[1]
-	return string(b) + "." + extension
+	extension := path.Ext(f)
+	return string(b) + extension
 }
 
 func serveImageHandler(w http.ResponseWriter, r *http.Request) {
