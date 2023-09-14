@@ -149,8 +149,7 @@ func urlUploadHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	parts := strings.Split(parsedUrl.Path, "/")
-	filename := parts[len(parts)-1]
+	filename := path.Base(parsedUrl.Path)
 
 	writeFileAndRedirect(w, r, resp.Body, filename)
 }
