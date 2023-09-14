@@ -80,14 +80,14 @@ func indexHandler(w http.ResponseWriter, r *http.Request) {
 	tmpl.Execute(w, nil)
 }
 
-func randfilename(n int, f string) string {
+func randfilename(length int, filename string) string {
 	letterRunes := []rune("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ")
-	b := make([]rune, n)
-	for i := range b {
-		b[i] = letterRunes[rand.Intn(len(letterRunes))]
+	randomRunes := make([]rune, length)
+	for index := range randomRunes {
+		randomRunes[index] = letterRunes[rand.Intn(len(letterRunes))]
 	}
-	extension := path.Ext(f)
-	return string(b) + extension
+	extension := path.Ext(filename)
+	return string(randomRunes) + extension
 }
 
 func serveImageHandler(w http.ResponseWriter, r *http.Request) {
