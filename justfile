@@ -13,7 +13,7 @@ fmt:
     gofmt -d -s -l .
     exit 1
   fi
-  echo "\033[92mgofmt Success\033[0m"
+  printf "\033[92mgofmt Success\033[0m\n"
 
 fix-fmt:
   gofmt -w -s .
