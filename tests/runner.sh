@@ -5,4 +5,9 @@ trap "docker-compose -f tests/docker-compose.yaml down" EXIT
 
 docker-compose -f tests/docker-compose.yaml build
 docker-compose -f tests/docker-compose.yaml up --detach grombley
-docker-compose -f tests/docker-compose.yaml up --abort-on-container-exit test-image-upload
+docker-compose -f tests/docker-compose.yaml up --detach nginx
+docker-compose -f tests/docker-compose.yaml up --abort-on-container-exit test
+
+docker-compose -f tests/docker-compose.yaml down
+
+exit $exit_code

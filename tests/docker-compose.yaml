@@ -3,6 +3,7 @@ version: "3.7"
 services:
 
   grombley:
+    container_name: grombley
     build:
       context: ../
       dockerfile: grombley.dockerfile
@@ -12,10 +13,20 @@ services:
     command:
       "/image-uploader"
 
-  test-image-upload:
+  nginx:
+    container_name: nginx
+    build:
+      context: ../
+      dockerfile: tests/Dockerfile
+    image: nginx-test
+    expose:
+      - 80
+
+  test:
+    container_name: test
     build:
       context: ../
       dockerfile: tests/Dockerfile
     image: grombley-test
-    command: |
-      sh -c "/tmp/test-image-upload.sh"
+    command:
+      "/tmp/test.sh"
