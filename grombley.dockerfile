@@ -3,6 +3,10 @@ FROM golang:alpine as BUILDER
 
 WORKDIR /build
 
+COPY go.mod go.sum /build/
+
+RUN go mod download
+
 COPY . /build
 
 RUN go build
