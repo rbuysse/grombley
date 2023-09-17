@@ -3,6 +3,9 @@ all: run
 build:
   go build
 
+docker-build:
+  docker build -t grombley -f grombley.dockerfile .
+
 ci:
   just build
   just fmt
