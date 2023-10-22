@@ -15,6 +15,7 @@ RUN go build
 FROM alpine
 
 COPY --from=BUILDER /build/config.toml .
+COPY --from=BUILDER /build/static .
 COPY --from=BUILDER /build/image-uploader .
 
 CMD /image-uploader
