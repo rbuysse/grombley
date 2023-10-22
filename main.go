@@ -52,6 +52,8 @@ func main() {
 	http.HandleFunc("/i/", serveImageHandler)
 	http.HandleFunc("/", indexHandler)
 
+	http.Handle("/static/", http.StripPrefix("/static/", http.FileServer(http.Dir("static"))))
+
 	// Define the port you want the server to listen on
 	port := config.Port // Change this to your desired port
 
