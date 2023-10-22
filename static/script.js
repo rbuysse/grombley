@@ -1,6 +1,18 @@
 document.addEventListener("DOMContentLoaded", () => {
   const dropArea = document.getElementById("drop-area");
   const fileInputField = document.getElementById("file-input");
+  const centerText = document.getElementById("center-text");
+  const spinner = document.getElementById("spinner");
+
+  function ready() {
+    centerText.style.display = "block";
+    spinner.style.display = "none";
+  }
+
+  function busy() {
+    centerText.style.display = "none";
+    spinner.style.display = "block";
+  }
 
   document.getElementById("browse").addEventListener("click", (e) => {
     fileInputField.click();
@@ -52,12 +64,14 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   async function fetchRequest(path, options) {
+    busy();
     try {
       const response = await fetch(path, options);
       handleResponse(response);
     } catch (error) {
       console.error("Error:", error);
     }
+    ready();
   }
 
   function handleFileUpload(file) {

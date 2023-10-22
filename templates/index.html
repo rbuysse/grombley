@@ -31,12 +31,17 @@
       .drag-over {
         border-color: #007bff;
       }
+
+      #spinner { display: none; }
     </style>
   </head>
   <body>
     <div id="drop-area" class="full-page-drop-area">
-      <p>drop shit or <span id="browse">click this</span></p>
-      <input type="file" id="file-input" style="display: none" />
+      <span id="center-text">
+        <p>drop shit or <span id="browse">click this</span></p>
+        <input type="file" id="file-input" style="display: none" />
+      </span>
+      <img src="static/shuffle.svg" alt="spinner" id="spinner" />
     </div>
     <script src="static/script.js"></script>
   </body>
