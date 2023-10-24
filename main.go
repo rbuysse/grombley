@@ -3,11 +3,13 @@ package main
 import (
 	"embed"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"html/template"
 	"io"
 	"log"
 	"math/rand"
+	"mime/multipart"
 	"net/http"
 	"net/url"
 	"os"
@@ -120,40 +122,76 @@ func serveImageHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func uploadHandler(w http.ResponseWriter, r *http.Request) {
-	// Parse the multipart form data with a specified max memory limit (in bytes)
-	r.ParseMultipartForm(10 << 20) // 10 MB max in-memory size
-
-	// Get the uploaded file
-	file, handler, err := r.FormFile("file") // "file" should match the name attribute in your HTML form
+	file, handler, err := parseFormAndGetFile(r)
 	if err != nil {
-		fmt.Println("Error retrieving the file:", err)
-		http.Error(w, "Error retrieving the file", http.StatusBadRequest)
+		handleError(w, "Error processing the file", err)
 		return
 	}
-	defer file.Close()
+
+	err = checkFileType(file)
+	if err != nil {
+		handleError(w, "Invalid file type", err)
+		return
+	}
 
 	writeFileAndRedirect(w, r, file, handler.Filename)
 }
 
 func urlUploadHandler(w http.ResponseWriter, r *http.Request) {
-	var requestBody map[string]string
-	json.NewDecoder(r.Body).Decode(&requestBody)
-	urlString := requestBody["url"]
+	urlString, err := parseRequestAndGetURL(r)
+	if err != nil {
+		handleError(w, "Error processing the URL", err)
+		return
+	}
 
 	resp, err := http.Get(urlString)
 	if err != nil {
+		handleError(w, "Error retrieving file from URL", err)
 		return
 	}
 	defer resp.Body.Close()
 
-	parsedUrl, err := url.Parse(urlString)
-	if err != nil {
-		return
-	}
-
-	filename := path.Base(parsedUrl.Path)
+	filename := getFilenameFromURL(urlString)
 
 	writeFileAndRedirect(w, r, resp.Body, filename)
+}
+
+func parseFormAndGetFile(r *http.Request) (multipart.File, *multipart.FileHeader, error) {
+	r.ParseMultipartForm(100 << 20) // 100 MB max in-memory size
+	return r.FormFile("file")
+}
+
+func parseRequestAndGetURL(r *http.Request) (string, error) {
+	var requestBody map[string]string
+	err := json.NewDecoder(r.Body).Decode(&requestBody)
+	if err != nil {
+		return "", err
+	}
+	return requestBody["url"], nil
+}
+
+func getFilenameFromURL(urlString string) string {
+	parsedUrl, _ := url.Parse(urlString)
+	return path.Base(parsedUrl.Path)
+}
+
+func handleError(w http.ResponseWriter, message string, err error) {
+	fmt.Println(message+":", err)
+	http.Error(w, message, http.StatusBadRequest)
+}
+
+func checkFileType(file multipart.File) error {
+	buffer := make([]byte, 512)
+	_, err := file.Read(buffer)
+	if err != nil {
+		return err
+	}
+	filetype := http.DetectContentType(buffer)
+	if !strings.HasPrefix(filetype, "image/") && !strings.HasPrefix(filetype, "video/") {
+		return errors.New("Invalid file type: " + filetype)
+	}
+	file.Seek(0, io.SeekStart)
+	return nil
 }
 
 func writeFileAndRedirect(w http.ResponseWriter, r *http.Request, file io.Reader, filename string) {
