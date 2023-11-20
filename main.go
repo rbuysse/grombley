@@ -1,11 +1,13 @@
 package main
 
 import (
+	"bytes"
 	"embed"
 	"encoding/json"
 	"fmt"
 	"html/template"
 	"io"
+	"io/ioutil"
 	"log"
 	"math/rand"
 	"net/http"
@@ -16,6 +18,9 @@ import (
 	"time"
 
 	"github.com/BurntSushi/toml"
+	// "github.com/disintegration/gift"
+	"github.com/rwcarlsen/goexif/exif"
+	"github.com/scottleedavis/go-exif-remove"
 )
 
 type Config struct {
@@ -58,6 +63,13 @@ func main() {
 	log.Fatal(http.ListenAndServe(port, nil))
 }
 
+// func fixOrientation (tmppath string) {
+// 	src := loadImage(tmppath)
+
+// 	filters := map[string]gift.Filter{
+// 	}
+// }
+
 func getContentType(filename string) string {
 	switch filepath.Ext(filename) {
 	case ".jpg", ".jpeg":
@@ -71,6 +83,36 @@ func getContentType(filename string) string {
 	}
 }
 
+func getOrientation(file io.Reader) int {
+	orientationMap := make(map[int]int)
+	// I think 6 and 8 are swapped even though that disagrees with
+	// https://jdhao.github.io/2019/07/31/image_rotation_exif_info/
+	orientationMap[1] = 0
+	orientationMap[8] = 90
+	orientationMap[3] = 180
+	orientationMap[6] = 270
+
+	// f, err := os.Open(filepath) // delete this I guess
+	x, err := exif.Decode(file)
+	if err != nil {
+		return 0
+	}
+
+	orientationTag, err := x.Get(exif.Orientation)
+	if err != nil {
+		log.Printf("Error getting orientation: %v", err)
+		return 0
+	}
+
+	orientationInt, err := orientationTag.Int(0)
+	if err != nil {
+		log.Printf("Error converting orientation to int: %v", err)
+		return 0
+	}
+	fmt.Println("-- DEBUG", orientationInt)
+	return orientationMap[orientationInt]
+}
+
 func indexHandler(w http.ResponseWriter, r *http.Request) {
 	tmpl, err := template.ParseFS(templatesFolder, "templates/index.html")
 	if err != nil {
@@ -78,6 +120,19 @@ func indexHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	tmpl.Execute(w, nil)
 }
+
+// func loadImage(filename string) image.Image {
+// 	f, err := os.Open(filename)
+// 	if err != nil {
+// 		log.Fatalf("os.Open failed: %v", err)
+// 	}
+// 	defer f.Close()
+// 	img, _, err := image.Decode(f)
+// 	if err != nil {
+// 		log.Fatalf("image.Decode failed: %v", err)
+// 	}
+// 	return img
+// }
 
 func randfilename(n int, f string) string {
 	letterRunes := []rune("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ")
@@ -88,6 +143,37 @@ func randfilename(n int, f string) string {
 	extension := strings.Split(f, ".")[1]
 	return string(b) + "." + extension
 }
+
+func removeEXIF(input io.Reader) (io.Reader, error) {
+	// Read the input data into a []byte
+	inputData, err := io.ReadAll(input)
+	if err != nil {
+		return nil, err
+	}
+
+	// Remove EXIF data
+	processedData, err := exifremove.Remove(inputData)
+	if err != nil {
+		return nil, err
+	}
+
+	// Create a new io.Reader from the processed data
+	output := bytes.NewReader(processedData)
+
+	return output, nil
+}
+
+// func saveImage(filename string, img image.Image) {
+// 	f, err := os.Create(filename)
+// 	if err != nil {
+// 		log.Fatalf("os.Create failed: %v", err)
+// 	}
+// 	defer f.Close()
+// 	err = png.Encode(f, img)
+// 	if err != nil {
+// 		log.Fatalf("png.Encode failed: %v", err)
+// 	}
+// }
 
 func serveImageHandler(w http.ResponseWriter, r *http.Request) {
 	// Extract the requested image filename from the URL.
@@ -157,20 +243,43 @@ func urlUploadHandler(w http.ResponseWriter, r *http.Request) {
 func writeFileAndRedirect(w http.ResponseWriter, r *http.Request, file io.Reader, filename string) {
 	filename = strings.ToLower(filename)
 	genfilename := randfilename(6, filename)
-	newFile, err := os.Create(config.UploadPath + genfilename)
+	tmpFile, err := os.Create("/tmp/" + genfilename)
 	if err != nil {
 		fmt.Println("Error creating the file:", err)
 		http.Error(w, "Error creating the file", http.StatusInternalServerError)
 		return
 	}
-	defer newFile.Close()
+	defer tmpFile.Close()
 
-	_, err = io.Copy(newFile, file)
+	// io.Reader is readonce so we have to make a copy to read for exif
+	// and read for writing the file
+	var buf bytes.Buffer
+	tee := io.TeeReader(file, &buf)
+
+	a, _ := ioutil.ReadAll(tee)
+	b, _ := ioutil.ReadAll(&buf)
+
+	// grab the exif orientation value
+	o := getOrientation(bytes.NewReader(b))
+	fmt.Println(o)
+
+	// remove a bunch of exif
+	fileNoExif, err := removeEXIF(bytes.NewReader(a))
+
+	_, err = io.Copy(tmpFile, fileNoExif)
 	if err != nil {
 		fmt.Println("Error copying file data:", err)
 		http.Error(w, "Error copying file data", http.StatusInternalServerError)
 		return
 	}
 
-	http.Redirect(w, r, "/i/"+genfilename, http.StatusSeeOther)
+	// write file out to a temp dir
+	renameErr := os.Rename("/tmp/"+genfilename, config.UploadPath+genfilename)
+
+	if err != nil {
+		fmt.Println(renameErr)
+		return
+	}
+
+	// http.Redirect(w, r, "/i/"+genfilename, http.StatusSeeOther)
 }
