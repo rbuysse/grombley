@@ -14,6 +14,10 @@ document.addEventListener("DOMContentLoaded", () => {
     spinner.style.display = "block";
   }
 
+  document.getElementById("cesspit").addEventListener("click", (e) => {
+    fileInputField.click();
+  });
+
   document.getElementById("browse").addEventListener("click", (e) => {
     fileInputField.click();
   });

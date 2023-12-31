@@ -3,13 +3,15 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>File Upload</title>
-
+    <title>the cesspit</title>
+    <link rel="icon" type="image/png" href="static/cesspit-128.png">
     <style>
       body,
       html {
         height: 100%;
         margin: 0;
+        background: #000;
+        color: #fff;
       }
 
       .full-page-drop-area {
@@ -19,12 +21,19 @@
         justify-content: center;
         align-items: center;
         height: 100%;
-        border: 5px dashed #ccc;
+        border: 5px dashed #ff0000;
         text-align: center;
       }
 
       #browse {
-        color: blue;
+        background: #ff0000;
+        color: #000;
+        font-weight: 900;
+        padding: 0 2px;
+        margin-left: 3px;
+      }
+
+      #browse, #cesspit {
         cursor: pointer;
       }
 
