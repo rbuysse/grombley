@@ -1,0 +1,4 @@
+port = ":8088"
+serve_path = "/i/"
+upload_path = "./uploads/"
+
