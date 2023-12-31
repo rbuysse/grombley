@@ -57,9 +57,12 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   });
 
-  function handleResponse(response) {
-    if (response.redirected) {
-      window.location.href = response.url;
+  async function handleResponse(response) {
+    if (response.ok) {
+      const result = await response.json();
+      window.location.href = result.url;
+    } else {
+      console.error("something goofed:", response.status);
     }
   }
 
@@ -79,6 +82,9 @@ document.addEventListener("DOMContentLoaded", () => {
     formData.append("file", file);
     fetchRequest("/upload", {
       method: "POST",
+      headers: {
+        Accept: "application/json",
+      },
       body: formData,
     });
   }
@@ -87,6 +93,7 @@ document.addEventListener("DOMContentLoaded", () => {
     fetchRequest("/url", {
       method: "POST",
       headers: {
+        Accept: "application/json",
         "Content-Type": "application/json",
       },
       body: JSON.stringify({ url: url }),
