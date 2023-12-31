@@ -7,14 +7,9 @@ CONTENT_TYPE="Content-Type: image/jpeg"
 
 printf "Testing file upload: "
 
-IMAGELOC="$(
-  curl -s -D - -F 'file=@/tmp/test.jpg' grombley:3000/upload |
-  grep Location |
-  awk '{print $2}' |
-  tr -d '\r'
-)"
+IMAGELOC="$(curl -s -F 'file=@/tmp/test.jpg' grombley:3000/upload)"
 
-curl --fail-with-body -s -I "http://grombley:3000${IMAGELOC}" | tee > /tmp/file
+curl --fail-with-body -s -I "$IMAGELOC" | tee > /tmp/file
 
 if grep -q "$CONTENT_TYPE" /tmp/file; then
   printf "✅ - File upload success\n\n"
@@ -31,13 +26,14 @@ printf "Testing URL upload: "
 URLPAYLOAD='{"url":"http://nginx/test.test.jpg"}'
 
 IMAGELOC=$(
-  curl -s -D - -H "Content-Type: application/json" -d "${URLPAYLOAD}" grombley:3000/url |
-  grep Location |
-  awk '{print $2}' |
-  tr -d '\r'
+  curl -s \
+    -H "Content-Type: application/json" \
+    -H "Accept: application/json" \
+    -d "${URLPAYLOAD}" grombley:3000/url \
+      | grep -oP '(?<="url":")[^"]+'
 )
 
-curl --fail-with-body -s -I "grombley:3000${IMAGELOC}" | tee > /tmp/url
+curl --fail-with-body -s -I "$IMAGELOC" | tee > /tmp/url
 
 if grep -q "$CONTENT_TYPE" /tmp/url; then
   printf "✅ - URL upload success\n\n"

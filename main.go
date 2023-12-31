@@ -132,7 +132,7 @@ func uploadHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	defer file.Close()
 
-	writeFileAndRedirect(w, r, file, handler.Filename)
+	writeFileAndReturnURL(w, r, file, handler.Filename)
 }
 
 func urlUploadHandler(w http.ResponseWriter, r *http.Request) {
@@ -153,26 +153,63 @@ func urlUploadHandler(w http.ResponseWriter, r *http.Request) {
 
 	filename := path.Base(parsedUrl.Path)
 
-	writeFileAndRedirect(w, r, resp.Body, filename)
+	writeFileAndReturnURL(w, r, resp.Body, filename)
 }
 
-func writeFileAndRedirect(w http.ResponseWriter, r *http.Request, file io.Reader, filename string) {
+func writeFileAndReturnURL(w http.ResponseWriter, r *http.Request, file io.Reader, filename string) error {
 	filename = strings.ToLower(filename)
 	genfilename := randfilename(6, filename)
-	newFile, err := os.Create(config.UploadPath + genfilename)
+	filepath := filepath.Join(config.UploadPath, genfilename)
+
+	if err := createAndCopyFile(filepath, file); err != nil {
+		fmt.Printf("%s: %v\n", "Error processing file", err)
+		http.Error(w, "Error processing file", http.StatusInternalServerError)
+		return err
+	}
+
+	fileURL := constructFileURL(r, genfilename)
+	return respondWithFileURL(w, r, fileURL)
+}
+
+func createAndCopyFile(filepath string, src io.Reader) error {
+	newFile, err := os.Create(filepath)
 	if err != nil {
-		fmt.Println("Error creating the file:", err)
-		http.Error(w, "Error creating the file", http.StatusInternalServerError)
-		return
+		return fmt.Errorf("error creating the file: %w", err)
 	}
 	defer newFile.Close()
 
-	_, err = io.Copy(newFile, file)
-	if err != nil {
-		fmt.Println("Error copying file data:", err)
-		http.Error(w, "Error copying file data", http.StatusInternalServerError)
-		return
+	if _, err = io.Copy(newFile, src); err != nil {
+		return fmt.Errorf("error copying file data: %w", err)
 	}
 
-	http.Redirect(w, r, "/i/"+genfilename, http.StatusSeeOther)
+	return nil
+}
+
+func constructFileURL(r *http.Request, filename string) string {
+	scheme := "http://"
+	if r.TLS != nil {
+		scheme = "https://"
+	}
+	return fmt.Sprintf("%s%s/i/%s", scheme, r.Host, filename)
+}
+
+func respondWithFileURL(w http.ResponseWriter, r *http.Request, url string) error {
+	acceptHeader := r.Header.Get("Accept")
+	switch acceptHeader {
+	case "application/json":
+		w.Header().Set("Content-Type", "application/json")
+		err := json.NewEncoder(w).Encode(map[string]string{"url": url})
+		if err != nil {
+			http.Error(w, "Failed to encode JSON response", http.StatusInternalServerError)
+			return err
+		}
+	default:
+		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+		_, err := w.Write([]byte(url + "\n"))
+		if err != nil {
+			http.Error(w, "Failed to write plain text response", http.StatusInternalServerError)
+			return err
+		}
+	}
+	return nil
 }
