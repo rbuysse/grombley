@@ -3,6 +3,7 @@ package main
 import (
 	"embed"
 	"encoding/json"
+	"flag"
 	"fmt"
 	"html/template"
 	"io"
@@ -27,20 +28,31 @@ type Config struct {
 
 var config Config
 
+const usage = `Usage:
+  -c, --config         Path to a configuration file (default: config.toml)
+`
+
 //go:embed templates
 var templatesFolder embed.FS
 
 func init() {
-	_, err := toml.DecodeFile("config.toml", &config)
-	if err != nil {
-		log.Fatalf("Error in parsing config file: %v", err)
-		os.Exit(1)
-	}
 
 	rand.Seed(time.Now().UnixNano())
 }
 
 func main() {
+
+	// Parse the command-line flags and load the config
+	var configFile string
+
+	flag.StringVar(&configFile, "c", "config.toml", "Path to the configuration file")
+	flag.StringVar(&configFile, "config", "config.toml", "Path to the configuration file")
+
+	if !flag.Parsed() {
+		flag.Parse()
+	}
+	config = loadConfig(configFile)
+
 	// Create the upload directory if it doesn't exist
 	if _, err := os.Stat(config.UploadPath); os.IsNotExist(err) {
 		os.MkdirAll(config.UploadPath, os.ModePerm)
@@ -59,6 +71,18 @@ func main() {
 
 	fmt.Printf("Server is running on port %s\n", port)
 	log.Fatal(http.ListenAndServe(port, nil))
+}
+
+func loadConfig(configFile string) Config {
+
+	var config Config
+
+	if _, err := toml.DecodeFile(configFile, &config); err != nil {
+		log.Fatalf("Error in parsing config file: %v", err)
+		os.Exit(1)
+	}
+
+	return config
 }
 
 func getContentType(filename string) string {
