@@ -62,7 +62,13 @@ func main() {
 	http.HandleFunc("/upload", uploadHandler)
 	http.HandleFunc("/url", urlUploadHandler)
 	http.HandleFunc("/i/", serveImageHandler)
-	http.HandleFunc("/", indexHandler)
+	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/" {
+			indexHandler(w, r)
+		} else {
+			notfoundHandler(w, r)
+		}
+	})
 
 	http.Handle("/static/", http.StripPrefix("/static/", http.FileServer(http.Dir("static"))))
 
