@@ -98,6 +98,14 @@ func getContentType(filename string) string {
 	}
 }
 
+func notfoundHandler(w http.ResponseWriter, r *http.Request) {
+	tmpl, err := template.ParseFS(templatesFolder, "templates/404.html")
+	if err != nil {
+		log.Fatal(err)
+	}
+	tmpl.Execute(w, nil)
+}
+
 func indexHandler(w http.ResponseWriter, r *http.Request) {
 	tmpl, err := template.ParseFS(templatesFolder, "templates/index.html")
 	if err != nil {
@@ -126,7 +134,7 @@ func serveImageHandler(w http.ResponseWriter, r *http.Request) {
 	// Open the image file.
 	imageFile, err := os.Open(imagePath)
 	if err != nil {
-		http.NotFound(w, r)
+		notfoundHandler(w, r)
 		return
 	}
 	defer imageFile.Close()
