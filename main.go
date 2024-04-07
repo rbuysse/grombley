@@ -72,13 +72,10 @@ func main() {
 
 	http.Handle("/static/", http.StripPrefix("/static/", http.FileServer(http.Dir("static"))))
 
-	// Define the port you want the server to listen on
-	port := config.Port // Change this to your desired port
-
 	config.Port = strings.TrimPrefix(config.Port, ":")
 
-	fmt.Printf("Server is running on port %s\n", port)
-	log.Fatal(http.ListenAndServe(":"+port, nil))
+	fmt.Printf("Server is running on port %s\n", config.Port)
+	log.Fatal(http.ListenAndServe(":"+config.Port, nil))
 }
 
 func loadConfig(configFile string) Config {
