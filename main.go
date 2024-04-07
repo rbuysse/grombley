@@ -61,7 +61,7 @@ func main() {
 	// Create a new HTTP router
 	http.HandleFunc("/upload", uploadHandler)
 	http.HandleFunc("/url", urlUploadHandler)
-	http.HandleFunc("/i/", serveImageHandler)
+	http.HandleFunc(config.ServePath, serveImageHandler)
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/" {
 			indexHandler(w, r)
@@ -230,7 +230,7 @@ func constructFileURL(r *http.Request, filename string) string {
 	if r.TLS != nil {
 		scheme = "https://"
 	}
-	return fmt.Sprintf("%s%s/i/%s", scheme, r.Host, filename)
+	return fmt.Sprintf("%s%s%s%s", scheme, r.Host, config.ServePath, filename)
 }
 
 func respondWithFileURL(w http.ResponseWriter, r *http.Request, url string) error {
