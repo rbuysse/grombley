@@ -51,7 +51,15 @@ func main() {
 	if !flag.Parsed() {
 		flag.Parse()
 	}
-	config = loadConfig(configFile)
+
+	// Load the config file if it exists otherwise use default values
+	if _, err := os.Stat(configFile); err != nil {
+		config.Port = "3000"
+		config.ServePath = "/i/"
+		config.UploadPath = "./uploads/"
+	} else {
+		config = loadConfig(configFile)
+	}
 
 	// Create the upload directory if it doesn't exist
 	if _, err := os.Stat(config.UploadPath); os.IsNotExist(err) {
