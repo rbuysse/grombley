@@ -1,4 +1,4 @@
-port = ":3000"
+port = "3000"
 serve_path = "/i/"
 upload_path = "./uploads/"
 

@@ -75,8 +75,10 @@ func main() {
 	// Define the port you want the server to listen on
 	port := config.Port // Change this to your desired port
 
+	config.Port = strings.TrimPrefix(config.Port, ":")
+
 	fmt.Printf("Server is running on port %s\n", port)
-	log.Fatal(http.ListenAndServe(port, nil))
+	log.Fatal(http.ListenAndServe(":"+port, nil))
 }
 
 func loadConfig(configFile string) Config {
