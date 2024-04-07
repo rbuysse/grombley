@@ -30,6 +30,9 @@ var config Config
 
 const usage = `Usage:
   -c, --config         Path to a configuration file (default: config.toml)
+  -p, --port           Port to run the server on (default: 3000)
+  -s, --serve-path     Path to serve images from (default: /i/)
+  -u, --upload-path    Path to store uploaded images (default: ./uploads/)
 `
 
 //go:embed templates
@@ -44,9 +47,22 @@ func main() {
 
 	// Parse the command-line flags and load the config
 	var configFile string
+	var portOpt string
+	var servePathOpt string
+	var uploadPathOpt string
 
 	flag.StringVar(&configFile, "c", "config.toml", "Path to the configuration file")
 	flag.StringVar(&configFile, "config", "config.toml", "Path to the configuration file")
+	flag.StringVar(&portOpt, "p", "3000", "Port to run the server on")
+	flag.StringVar(&portOpt, "port", "3000", "Port to run the server on")
+	flag.StringVar(&servePathOpt, "s", "", "Path to serve images from")
+	flag.StringVar(&servePathOpt, "serve-path", "", "Path to serve images from")
+	flag.StringVar(&uploadPathOpt, "u", "", "Path to store uploaded images")
+	flag.StringVar(&uploadPathOpt, "upload-path", "", "Path to store uploaded images")
+
+	flag.Usage = func() {
+		fmt.Println(usage)
+	}
 
 	if !flag.Parsed() {
 		flag.Parse()
@@ -59,6 +75,19 @@ func main() {
 		config.UploadPath = "./uploads/"
 	} else {
 		config = loadConfig(configFile)
+	}
+
+	// Override the config values with the command-line flags
+	options := map[*string]*string{
+		&portOpt:       &config.Port,
+		&servePathOpt:  &config.ServePath,
+		&uploadPathOpt: &config.UploadPath,
+	}
+
+	for option, configField := range options {
+		if *option != "" {
+			*configField = *option
+		}
 	}
 
 	// Create the upload directory if it doesn't exist
@@ -82,7 +111,10 @@ func main() {
 
 	config.Port = strings.TrimPrefix(config.Port, ":")
 
-	fmt.Printf("Server is running on port %s\n", config.Port)
+	fmt.Printf("Server is running on port %s\n"+
+		"Serving images at %s\n"+
+		"Upload path is %s\n",
+		config.Port, config.ServePath, config.UploadPath)
 	log.Fatal(http.ListenAndServe(":"+config.Port, nil))
 }
 
