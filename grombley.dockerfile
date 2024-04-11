@@ -14,7 +14,6 @@ RUN go build
 #--== final image ==--
 FROM alpine
 
-COPY --from=BUILDER /build/config.toml .
 COPY --from=BUILDER /build/static .
 COPY --from=BUILDER /build/image-uploader .
 
