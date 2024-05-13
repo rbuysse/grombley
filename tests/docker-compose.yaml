@@ -11,7 +11,7 @@ services:
     expose:
       - 3000
     command:
-      "/image-uploader"
+      "/opt/grombley/image-uploader"
 
   nginx:
     container_name: nginx
