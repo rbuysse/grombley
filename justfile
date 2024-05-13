@@ -22,7 +22,7 @@ fix-fmt:
   gofmt -w -s .
 
 run:
-  go run main.go
+  go run .
 
 test:
   go test
