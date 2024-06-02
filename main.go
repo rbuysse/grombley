@@ -54,7 +54,7 @@ func main() {
 		}
 	})
 
-	http.Handle("/static/", http.StripPrefix("/static/", http.FileServer(http.Dir("static"))))
+	http.Handle("/static/", http.StripPrefix("/static/", http.FileServer(http.Dir("templates/static"))))
 
 	config.Port = strings.TrimPrefix(config.Port, ":")
 

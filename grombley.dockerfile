@@ -14,8 +14,7 @@ RUN go build
 #--== final image ==--
 FROM alpine
 
-COPY --from=BUILDER /build/static/ /opt/grombley/static
-COPY --from=BUILDER /build/image-uploader /opt/grombley
+COPY --from=BUILDER /build/image-uploader /opt/grombley/
 
 WORKDIR /opt/grombley
 
