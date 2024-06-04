@@ -6,6 +6,18 @@ build:
 docker-build:
   docker build -t grombley -f grombley.dockerfile .
 
+docker-run:
+  #!/bin/bash
+  docker kill grombley &> /dev/null
+  docker rm grombley &> /dev/null
+  docker run \
+    -d \
+    --rm \
+    --name grombley \
+    -p 3000:3000 \
+    grombley
+  echo -e "Run 'docker kill grombley' to remove the running container."
+
 ci:
   just build
   just fmt
@@ -22,7 +34,7 @@ fix-fmt:
   gofmt -w -s .
 
 run:
-  go run main.go
+  go run .
 
 test:
   go test
