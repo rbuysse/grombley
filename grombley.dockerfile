@@ -15,6 +15,7 @@ RUN go build
 FROM alpine
 
 COPY --from=BUILDER /build/image-uploader /opt/grombley/
+COPY --from=BUILDER /build/templates /opt/grombley/templates
 
 WORKDIR /opt/grombley
 
