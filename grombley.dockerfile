@@ -1,5 +1,5 @@
 # --== build image ==--
-FROM golang:alpine as BUILDER
+FROM golang:alpine AS builder
 
 WORKDIR /build
 
@@ -14,8 +14,8 @@ RUN go build
 #--== final image ==--
 FROM alpine
 
-COPY --from=BUILDER /build/image-uploader /opt/grombley/
+COPY --from=builder /build/image-uploader /opt/grombley/
 
 WORKDIR /opt/grombley
 
-CMD ./image-uploader
+CMD ["./image-uploader"]
