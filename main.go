@@ -4,7 +4,6 @@ import (
 	"embed"
 	"encoding/json"
 	"fmt"
-	"html/template"
 	"io"
 	"log"
 	"math/rand"
@@ -14,6 +13,7 @@ import (
 	"path"
 	"path/filepath"
 	"strings"
+	"text/template"
 	"time"
 )
 
@@ -47,14 +47,19 @@ func main() {
 	http.HandleFunc("/url", urlUploadHandler)
 	http.HandleFunc(config.ServePath, serveImageHandler)
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		filePath := path.Join("templates", r.URL.Path)
 		if r.URL.Path == "/" {
-			indexHandler(w, r)
-		} else {
-			notfoundHandler(w, r)
+			filePath = "templates/index.html"
 		}
-	})
+		file, err := templatesFolder.Open(filePath)
+		if err != nil {
+			notfoundHandler(w, r)
+			return
+		}
+		defer file.Close()
 
-	http.Handle("/static/", http.StripPrefix("/static/", http.FileServer(http.Dir("templates/static"))))
+		io.Copy(w, file)
+	})
 
 	config.Port = strings.TrimPrefix(config.Port, ":")
 
@@ -80,14 +85,6 @@ func getContentType(filename string) string {
 
 func notfoundHandler(w http.ResponseWriter, r *http.Request) {
 	tmpl, err := template.ParseFS(templatesFolder, "templates/404.html")
-	if err != nil {
-		log.Fatal(err)
-	}
-	tmpl.Execute(w, nil)
-}
-
-func indexHandler(w http.ResponseWriter, r *http.Request) {
-	tmpl, err := template.ParseFS(templatesFolder, "templates/index.html")
 	if err != nil {
 		log.Fatal(err)
 	}

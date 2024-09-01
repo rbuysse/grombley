@@ -43,3 +43,30 @@ else
   exit 1
 fi
 
+# --== Make sure embedFS is working ==--
+
+printf "Testing embedFS: "
+
+RESPONSE=$(curl -s grombley:3000/static/script.js)
+
+if echo "$RESPONSE" | grep -q "document.addEventListener"; then
+  printf "✅ - embedFS working\n\n"
+else
+  printf "❌ - embedFS not working\n\n"
+  echo "RESPONSE is: $RESPONSE"
+  exit 1
+fi
+
+# --== Test 404 page works ==--
+
+printf "Testing 404 page: "
+
+RESPONSE=$(curl -s grombley:3000/static/cheeseface)
+
+if echo $RESPONSE | grep -q "Fenton Not Found"; then
+  printf "✅ - 404 works\n\n"
+else
+  printf "❌ - 404's busted\n\n"
+  echo "RESPONSE is: $RESPONSE"
+  exit 1
+fi
