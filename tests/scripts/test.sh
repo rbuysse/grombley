@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-set -e
+ERRORS=0
 
 CONTENT_TYPE="Content-Type: image/jpeg"
 
@@ -16,7 +16,7 @@ if grep -q "$CONTENT_TYPE" /tmp/file; then
 else
   printf "❌ - File upload failed\n\n"
   cat /tmp/file
-  exit 1
+  ERRORS=$((ERRORS+1))
 fi
 
 # --== URL Upload Test ==--
@@ -40,7 +40,7 @@ if grep -q "$CONTENT_TYPE" /tmp/url; then
 else
   printf "❌ - URL upload failed\n\n"
   cat /tmp/url
-  exit 1
+  ERRORS=$((ERRORS+1))
 fi
 
 # --== Make sure embedFS is working ==--
@@ -54,7 +54,7 @@ if echo "$RESPONSE" | grep -q "document.addEventListener"; then
 else
   printf "❌ - embedFS not working\n\n"
   echo "RESPONSE is: $RESPONSE"
-  exit 1
+  ERRORS=$((ERRORS+1))
 fi
 
 # --== Test 404 page works ==--
@@ -68,5 +68,12 @@ if echo $RESPONSE | grep -q "Fenton Not Found"; then
 else
   printf "❌ - 404's busted\n\n"
   echo "RESPONSE is: $RESPONSE"
+  ERRORS=$((ERRORS+1))
+fi
+
+if [ $ERRORS -eq 0 ]; then
+  printf "All tests passed: ✅ - 😊\n"
+else
+  printf "Something's busted: ❌ - ☹️\n"
   exit 1
 fi
