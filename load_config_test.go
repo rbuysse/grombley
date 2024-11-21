@@ -14,7 +14,7 @@ func TestLoadConfig(t *testing.T) {
 	defer os.Remove(tempFile.Name())
 
 	configContent := `
-port = ":666"
+bind = "localhost:666"
 serve_path = "/p/"
 upload_path = "./grapes/"
 `
@@ -25,8 +25,8 @@ upload_path = "./grapes/"
 	config := loadConfig(tempFile.Name())
 
 	// Check if the loaded config matches the expected config
-	expectedPort := ":666"
-	if config.Port != expectedPort {
-		t.Errorf("Expected port to be %s, but got %s", expectedPort, config.Port)
+	expectedBind := "localhost:666"
+	if config.Bind != expectedBind {
+		t.Errorf("Expected bind to be %s, but got %s", expectedBind, config.Bind)
 	}
 }
