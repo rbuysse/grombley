@@ -18,7 +18,7 @@ import (
 )
 
 type Config struct {
-	Port       string `toml:"port"`
+	Bind       string `toml:"bind"`
 	ServePath  string `toml:"serve_path"`
 	UploadPath string `toml:"upload_path"`
 }
@@ -61,13 +61,11 @@ func main() {
 		io.Copy(w, file)
 	})
 
-	config.Port = strings.TrimPrefix(config.Port, ":")
-
-	fmt.Printf("Server is running on port %s\n"+
+	fmt.Printf("Server is running on %s\n"+
 		"Serving images at %s\n"+
 		"Upload path is %s\n",
-		config.Port, config.ServePath, config.UploadPath)
-	log.Fatal(http.ListenAndServe(":"+config.Port, nil))
+		config.Bind, config.ServePath, config.UploadPath)
+	log.Fatal(http.ListenAndServe(config.Bind, nil))
 }
 
 func getContentType(filename string) string {
