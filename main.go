@@ -155,14 +155,35 @@ func urlUploadHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	defer resp.Body.Close()
 
-	parsedUrl, err := url.Parse(urlString)
+	filename, err := generateFilename(urlString, resp)
 	if err != nil {
 		return
 	}
 
-	filename := path.Base(parsedUrl.Path)
-
 	writeFileAndReturnURL(w, r, resp.Body, filename)
+}
+
+func generateFilename(urlString string, resp *http.Response) (string, error) {
+	parsedUrl, err := url.Parse(urlString)
+	if err != nil {
+		return "", err
+	}
+
+	filename := path.Base(parsedUrl.Path)
+	if !strings.Contains(filename, ".") {
+		contentType := resp.Header.Get("Content-Type")
+		ext := ""
+		switch contentType {
+		case "image/jpeg":
+			ext = ".jpg"
+		case "image/png":
+			ext = ".png"
+		case "image/gif":
+			ext = ".gif"
+		}
+		filename = filename + ext
+	}
+	return filename, nil
 }
 
 func writeFileAndReturnURL(w http.ResponseWriter, r *http.Request, file io.Reader, filename string) error {
