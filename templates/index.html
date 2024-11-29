@@ -32,13 +32,22 @@
         border-color: #007bff;
       }
 
-      #spinner { display: none; }
+      #spinner {
+        display: none;
+      }
+
+      #error {
+        color: #bd0000;
+        font-weight: 500;
+        visibility: hidden;
+      }
     </style>
   </head>
   <body>
     <div id="drop-area" class="full-page-drop-area">
       <span id="center-text">
         <p>drop shit or <span id="browse">click this</span></p>
+        <p id="error">⚠</p>
         <input type="file" id="file-input" style="display: none" />
       </span>
       <img src="static/shuffle.svg" alt="spinner" id="spinner" />
