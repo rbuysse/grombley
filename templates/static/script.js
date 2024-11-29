@@ -44,7 +44,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     // handle image
     const imageItem = Array.from(clipboardData.items).find((item) =>
-      item.type.includes("image"),
+      item.type.includes("image")
     );
     if (imageItem) {
       handleFileUpload(imageItem.getAsFile());
@@ -57,12 +57,21 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   });
 
+  function handleError(errorText) {
+    const error = document.getElementById("error");
+    error.textContent = `⚠ ${errorText}`;
+    error.style.visibility = "visible";
+
+    console.error("something goofed:", errorText);
+  }
+
   async function handleResponse(response) {
     if (response.ok) {
       const result = await response.json();
       window.location.href = result.url;
     } else {
-      console.error("something goofed:", response.status);
+      const errorText = await response.text();
+      handleError(errorText.toLowerCase());
     }
   }
 
