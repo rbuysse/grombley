@@ -24,7 +24,13 @@ type Config struct {
 	UploadPath string `toml:"upload_path"`
 }
 
+type MimeTypeHandler struct {
+	mimeToExt map[string]string
+	extToMime map[string]string
+}
+
 var config Config
+var mimeTypeHandler MimeTypeHandler
 
 //go:embed templates
 var templatesFolder embed.FS
@@ -34,9 +40,16 @@ func init() {
 	rand.Seed(time.Now().UnixNano())
 }
 
+var supportedMimeTypes = map[string]string{
+	"image/jpeg": "jpg",
+	"image/png":  "png",
+	"image/gif":  "gif",
+}
+
 func main() {
 
 	config = GenerateConfig()
+	mimeTypeHandler = *newMimeTypeHandler()
 
 	// Create the upload directory if it doesn't exist
 	if _, err := os.Stat(config.UploadPath); os.IsNotExist(err) {
@@ -71,47 +84,47 @@ func main() {
 	log.Fatal(http.ListenAndServe(":"+config.Port, nil))
 }
 
-func detectContentType(file io.Reader) (string, io.Reader, error) {
-	// Read first 512 bytes for content type detection
+func newMimeTypeHandler() *MimeTypeHandler {
+	mimeToExt := supportedMimeTypes
+
+	extToMime := make(map[string]string, len(mimeToExt))
+	for mime, ext := range mimeToExt {
+		extToMime["."+ext] = mime
+		if mime == "image/jpeg" {
+			extToMime[".jpeg"] = mime
+		}
+	}
+
+	return &MimeTypeHandler{
+		mimeToExt: mimeToExt,
+		extToMime: extToMime,
+	}
+}
+
+func (m *MimeTypeHandler) detectContentType(file io.Reader) (string, io.Reader, error) {
 	buffer := make([]byte, 512)
 	n, err := file.Read(buffer)
 	if err != nil && err != io.EOF {
 		return "", nil, err
 	}
 
-	// Detect content type
 	contentType := http.DetectContentType(buffer[:n])
-
-	// Create new reader combining buffer and remaining content
 	combinedReader := io.MultiReader(bytes.NewReader(buffer[:n]), file)
 
-	// Map MIME type to extension
-	var ext string
-	switch contentType {
-	case "image/jpeg":
-		ext = ".jpg"
-	case "image/png":
-		ext = ".png"
-	case "image/gif":
-		ext = ".gif"
-	default:
-		return "", nil, fmt.Errorf("unsupported image type: %s", contentType)
+	ext, ok := m.mimeToExt[contentType]
+	if !ok {
+		return "", nil, fmt.Errorf("unsupported type: %s", contentType)
 	}
 
-	return ext, combinedReader, nil
+	return "." + ext, combinedReader, nil
 }
 
-func getContentType(filename string) string {
-	switch filepath.Ext(filename) {
-	case ".jpg", ".jpeg":
-		return "image/jpeg"
-	case ".png":
-		return "image/png"
-	case ".gif":
-		return "image/gif"
-	default:
-		return "application/octet-stream"
+func (m *MimeTypeHandler) getContentType(filename string) string {
+	ext := filepath.Ext(filename)
+	if mime, ok := m.extToMime[ext]; ok {
+		return mime
 	}
+	return "application/octet-stream"
 }
 
 func notfoundHandler(w http.ResponseWriter, r *http.Request) {
@@ -148,7 +161,7 @@ func serveImageHandler(w http.ResponseWriter, r *http.Request) {
 	defer imageFile.Close()
 
 	// Set the Content-Type header based on the file extension.
-	contentType := getContentType(imageName)
+	contentType := mimeTypeHandler.getContentType(imageName)
 	w.Header().Set("Content-Type", contentType)
 
 	// Copy the file data to the response writer.
@@ -219,7 +232,7 @@ func generateFilename(urlString string, resp *http.Response) (string, error) {
 
 func writeFileAndReturnURL(w http.ResponseWriter, r *http.Request, file io.Reader, filename string) error {
 	// Detect content type and get proper extension
-	ext, fileReader, err := detectContentType(file)
+	ext, fileReader, err := mimeTypeHandler.detectContentType(file)
 	if err != nil {
 		http.Error(w, "Unsupported file type", http.StatusBadRequest)
 		return err
