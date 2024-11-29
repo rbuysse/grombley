@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"embed"
 	"encoding/json"
 	"fmt"
@@ -68,6 +69,36 @@ func main() {
 		"Upload path is %s\n",
 		config.Port, config.ServePath, config.UploadPath)
 	log.Fatal(http.ListenAndServe(":"+config.Port, nil))
+}
+
+func detectContentType(file io.Reader) (string, io.Reader, error) {
+	// Read first 512 bytes for content type detection
+	buffer := make([]byte, 512)
+	n, err := file.Read(buffer)
+	if err != nil && err != io.EOF {
+		return "", nil, err
+	}
+
+	// Detect content type
+	contentType := http.DetectContentType(buffer[:n])
+
+	// Create new reader combining buffer and remaining content
+	combinedReader := io.MultiReader(bytes.NewReader(buffer[:n]), file)
+
+	// Map MIME type to extension
+	var ext string
+	switch contentType {
+	case "image/jpeg":
+		ext = ".jpg"
+	case "image/png":
+		ext = ".png"
+	case "image/gif":
+		ext = ".gif"
+	default:
+		return "", nil, fmt.Errorf("unsupported image type: %s", contentType)
+	}
+
+	return ext, combinedReader, nil
 }
 
 func getContentType(filename string) string {
@@ -187,12 +218,19 @@ func generateFilename(urlString string, resp *http.Response) (string, error) {
 }
 
 func writeFileAndReturnURL(w http.ResponseWriter, r *http.Request, file io.Reader, filename string) error {
-	filename = strings.ToLower(filename)
+	// Detect content type and get proper extension
+	ext, fileReader, err := detectContentType(file)
+	if err != nil {
+		http.Error(w, "Unsupported file type", http.StatusBadRequest)
+		return err
+	}
+
+	// Ensure filename has correct extension
+	filename = strings.TrimSuffix(filename, filepath.Ext(filename)) + ext
 	genfilename := randfilename(6, filename)
 	filepath := filepath.Join(config.UploadPath, genfilename)
 
-	if err := createAndCopyFile(filepath, file); err != nil {
-		fmt.Printf("%s: %v\n", "Error processing file", err)
+	if err := createAndCopyFile(filepath, fileReader); err != nil {
 		http.Error(w, "Error processing file", http.StatusInternalServerError)
 		return err
 	}
