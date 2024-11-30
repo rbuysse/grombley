@@ -19,6 +19,30 @@ else
   ERRORS=$((ERRORS+1))
 fi
 
+# --== Extless Url Upload Test ==--
+
+printf "Testing extless URL upload: "
+
+URLPAYLOAD='{"url":"http://nginx/extlessjpg"}'
+
+IMAGELOC=$(
+  curl -s \
+    -H "Content-Type: application/json" \
+    -H "Accept: application/json" \
+    -d "${URLPAYLOAD}" grombley:3000/url \
+      | grep -oP '(?<="url":")[^"]+'
+)
+
+curl --fail-with-body -s -I "$IMAGELOC" | tee > /tmp/extless
+
+if grep -q "$CONTENT_TYPE" /tmp/extless; then
+  printf "✅ - Extless URL upload success\n\n"
+else
+  printf "❌ - Extless URL upload failed\n\n"
+  cat /tmp/extless
+  ERRORS=$((ERRORS+1))
+fi
+
 # --== URL Upload Test ==--
 
 printf "Testing URL upload: "
