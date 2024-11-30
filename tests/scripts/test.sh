@@ -47,7 +47,7 @@ fi
 
 printf "Testing URL upload: "
 
-URLPAYLOAD='{"url":"http://nginx/test.test.jpg"}'
+URLPAYLOAD='{"url":"http://nginx/jpg.not.zip"}'
 
 IMAGELOC=$(
   curl -s \
