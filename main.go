@@ -9,7 +9,6 @@ import (
 	"log"
 	"math/rand"
 	"net/http"
-	"net/url"
 	"os"
 	"path"
 	"path/filepath"
@@ -135,13 +134,12 @@ func notfoundHandler(w http.ResponseWriter, r *http.Request) {
 	tmpl.Execute(w, nil)
 }
 
-func randfilename(length int, filename string) string {
+func randfilename(length int, extension string) string {
 	letterRunes := []rune("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ")
 	randomRunes := make([]rune, length)
 	for index := range randomRunes {
 		randomRunes[index] = letterRunes[rand.Intn(len(letterRunes))]
 	}
-	extension := path.Ext(filename)
 	return string(randomRunes) + extension
 }
 
@@ -177,7 +175,7 @@ func uploadHandler(w http.ResponseWriter, r *http.Request) {
 	r.ParseMultipartForm(10 << 20) // 10 MB max in-memory size
 
 	// Get the uploaded file
-	file, handler, err := r.FormFile("file") // "file" should match the name attribute in your HTML form
+	file, _, err := r.FormFile("file") // "file" should match the name attribute in your HTML form
 	if err != nil {
 		fmt.Println("Error retrieving the file:", err)
 		http.Error(w, "Error retrieving the file", http.StatusBadRequest)
@@ -185,7 +183,7 @@ func uploadHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	defer file.Close()
 
-	writeFileAndReturnURL(w, r, file, handler.Filename)
+	writeFileAndReturnURL(w, r, file)
 }
 
 func urlUploadHandler(w http.ResponseWriter, r *http.Request) {
@@ -199,38 +197,14 @@ func urlUploadHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	defer resp.Body.Close()
 
-	filename, err := generateFilename(urlString, resp)
 	if err != nil {
 		return
 	}
 
-	writeFileAndReturnURL(w, r, resp.Body, filename)
+	writeFileAndReturnURL(w, r, resp.Body)
 }
 
-func generateFilename(urlString string, resp *http.Response) (string, error) {
-	parsedUrl, err := url.Parse(urlString)
-	if err != nil {
-		return "", err
-	}
-
-	filename := path.Base(parsedUrl.Path)
-	if !strings.Contains(filename, ".") {
-		contentType := resp.Header.Get("Content-Type")
-		ext := ""
-		switch contentType {
-		case "image/jpeg":
-			ext = ".jpg"
-		case "image/png":
-			ext = ".png"
-		case "image/gif":
-			ext = ".gif"
-		}
-		filename = filename + ext
-	}
-	return filename, nil
-}
-
-func writeFileAndReturnURL(w http.ResponseWriter, r *http.Request, file io.Reader, filename string) error {
+func writeFileAndReturnURL(w http.ResponseWriter, r *http.Request, file io.Reader) error {
 	// Detect content type and get proper extension
 	ext, fileReader, err := mimeTypeHandler.detectContentType(file)
 	if err != nil {
@@ -239,8 +213,7 @@ func writeFileAndReturnURL(w http.ResponseWriter, r *http.Request, file io.Reade
 	}
 
 	// Ensure filename has correct extension
-	filename = strings.TrimSuffix(filename, filepath.Ext(filename)) + ext
-	genfilename := randfilename(6, filename)
+	genfilename := randfilename(6, ext)
 	filepath := filepath.Join(config.UploadPath, genfilename)
 
 	if err := createAndCopyFile(filepath, fileReader); err != nil {
