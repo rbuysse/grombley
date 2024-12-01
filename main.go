@@ -191,10 +191,6 @@ func urlUploadHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	defer resp.Body.Close()
 
-	if err != nil {
-		return
-	}
-
 	writeFileAndReturnURL(w, r, resp.Body)
 }
 
