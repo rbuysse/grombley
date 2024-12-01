@@ -60,7 +60,7 @@ func main() {
 		}
 		file, err := templatesFolder.Open(filePath)
 		if err != nil {
-			notfoundHandler(w, r)
+			notfoundHandler(w)
 			return
 		}
 		defer file.Close()
@@ -120,7 +120,7 @@ func (m *MimeTypeHandler) getContentType(filename string) string {
 	return "application/octet-stream"
 }
 
-func notfoundHandler(w http.ResponseWriter, r *http.Request) {
+func notfoundHandler(w http.ResponseWriter) {
 	tmpl, err := template.ParseFS(templatesFolder, "templates/404.html")
 	if err != nil {
 		log.Fatal(err)
@@ -147,7 +147,7 @@ func serveImageHandler(w http.ResponseWriter, r *http.Request) {
 	// Open the image file.
 	imageFile, err := os.Open(imagePath)
 	if err != nil {
-		notfoundHandler(w, r)
+		notfoundHandler(w)
 		return
 	}
 	defer imageFile.Close()
