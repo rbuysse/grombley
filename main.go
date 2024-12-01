@@ -14,7 +14,6 @@ import (
 	"path/filepath"
 	"strings"
 	"text/template"
-	"time"
 )
 
 type Config struct {
@@ -33,11 +32,6 @@ var mimeTypeHandler MimeTypeHandler
 
 //go:embed templates
 var templatesFolder embed.FS
-
-func init() {
-
-	rand.Seed(time.Now().UnixNano())
-}
 
 var supportedMimeTypes = map[string]string{
 	"image/jpeg": "jpg",
