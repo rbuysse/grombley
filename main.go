@@ -37,6 +37,7 @@ var supportedMimeTypes = map[string]string{
 	"image/jpeg": "jpg",
 	"image/png":  "png",
 	"image/gif":  "gif",
+	"image/heic": "heic",
 }
 
 func main() {
@@ -102,14 +103,19 @@ func (m *MimeTypeHandler) detectContentType(file io.Reader) (string, io.Reader, 
 	}
 
 	contentType := http.DetectContentType(buffer[:n])
-	combinedReader := io.MultiReader(bytes.NewReader(buffer[:n]), file)
+
+	if contentType == "application/octet-stream" {
+		if isHEIC(buffer[:n]) {
+			return ".heic", io.MultiReader(bytes.NewReader(buffer[:n]), file), nil
+		}
+	}
 
 	ext, ok := m.mimeToExt[contentType]
 	if !ok {
 		return "", nil, fmt.Errorf("unsupported type: %s", contentType)
 	}
 
-	return "." + ext, combinedReader, nil
+	return "." + ext, io.MultiReader(bytes.NewReader(buffer[:n]), file), nil
 }
 
 func (m *MimeTypeHandler) getContentType(filename string) string {
@@ -200,6 +206,16 @@ func writeFileAndReturnURL(w http.ResponseWriter, r *http.Request, file io.Reade
 	if err != nil {
 		http.Error(w, "Unsupported file type", http.StatusBadRequest)
 		return err
+	}
+
+	if ext == ".heic" {
+		converted, err := convertHEICToJPEG(fileReader)
+		if err != nil {
+			http.Error(w, "HEIC conversion failed", http.StatusInternalServerError)
+			return err
+		}
+		ext = ".jpg"
+		fileReader = converted
 	}
 
 	// Ensure filename has correct extension

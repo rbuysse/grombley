@@ -1,2 +1,4 @@
 github.com/BurntSushi/toml v1.3.2 h1:o7IhLm0Msx3BaB+n3Ag7L8EVlByGnpq14C4YWiu/gL8=
 github.com/BurntSushi/toml v1.3.2/go.mod h1:CxXYINrC8qIiEnFrOxCa7Jy5BFHlXnUU2pbicEuybxQ=
+github.com/jdeng/goheif v0.0.0-20241115163857-e2bbb197c985 h1:PpWPfNoLsnQxhnu4Hp4WQaRK53i0Xikp9347gS0ThAg=
+github.com/jdeng/goheif v0.0.0-20241115163857-e2bbb197c985/go.mod h1:whEdtAJfm8ia675sbmIATUVAT/P9gnb7zHpR3hzqst0=
