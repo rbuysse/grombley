@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"embed"
 	"encoding/json"
+	"flag"
 	"fmt"
 	"io"
 	"log"
@@ -41,7 +42,11 @@ var supportedMimeTypes = map[string]string{
 	"image/gif":  "gif",
 }
 
+var debug = flag.Bool("debug", false, "enable debug mode")
+
 func main() {
+
+	flag.Parse()
 
 	config = GenerateConfig()
 	mimeTypeHandler = *newMimeTypeHandler()
@@ -82,6 +87,12 @@ func main() {
 		"Serving images at %s\n"+
 		"Upload path is %s\n",
 		config.Port, config.ServePath, config.UploadPath)
+
+	if *debug {
+		for hash, filename := range hashes {
+			fmt.Printf("MD5 Hash: %s, Filename: %s\n", hash, filename)
+		}
+	}
 
 	log.Fatal(http.ListenAndServe(":"+config.Port, nil))
 }
@@ -214,11 +225,15 @@ func writeFileAndReturnURL(w http.ResponseWriter, r *http.Request, file io.Reade
 	value, exists := imageHashExists(hash)
 
 	if exists {
-		fmt.Printf("Hash %s exists\n", hash)
+		if *debug {
+			fmt.Printf("Hash %s exists: %s\n", hash, value)
+		}
 		fileURL := constructFileURL(r, value)
 		return respondWithFileURL(w, r, fileURL)
 	} else {
-		fmt.Printf("Hash %s does not exist\n", hash)
+		if *debug {
+			fmt.Printf("Hash %s does not exist\n", hash)
+		}
 		ext, fileReader, err := mimeTypeHandler.detectContentType(file)
 		if err != nil {
 			http.Error(w, "Unsupported file type", http.StatusBadRequest)
