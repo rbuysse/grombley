@@ -33,8 +33,8 @@ fmt:
 fix-fmt:
   gofmt -w -s .
 
-run:
-  go run .
+run *args:
+  go run . {{args}}
 
 test:
   go test

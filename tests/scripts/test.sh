@@ -67,6 +67,23 @@ else
   ERRORS=$((ERRORS+1))
 fi
 
+# --== Duplicate Upload Test ==--
+
+printf "Testing duplicate upload: "
+
+IMAGELOC1="$(curl -s -F 'file=@/tmp/test.jpg' grombley:3000/upload)"
+IMAGELOC2="$(curl -s -F 'file=@/tmp/test.jpg' grombley:3000/upload)"
+
+if [ "$IMAGELOC1" = "$IMAGELOC2" ]; then
+  printf "✅ - Dupe upload success\n\n"
+else
+  printf "❌ - Dupe upload failed\n\n"
+  echo "IMAGELOC1: $IMAGELOC1"
+  echo "IMAGELOC2: $IMAGELOC2"
+  ERRORS=$((ERRORS+1))
+fi
+
+
 # --== Make sure embedFS is working ==--
 
 printf "Testing embedFS: "

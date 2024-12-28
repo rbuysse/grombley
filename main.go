@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"embed"
 	"encoding/json"
+	"flag"
 	"fmt"
 	"io"
 	"log"
@@ -14,6 +15,7 @@ import (
 	"path/filepath"
 	"strings"
 	"text/template"
+	"time"
 )
 
 type Config struct {
@@ -28,6 +30,7 @@ type MimeTypeHandler struct {
 }
 
 var config Config
+var hashes map[string]string
 var mimeTypeHandler MimeTypeHandler
 
 //go:embed templates
@@ -39,7 +42,11 @@ var supportedMimeTypes = map[string]string{
 	"image/gif":  "gif",
 }
 
+var debug = flag.Bool("debug", false, "enable debug mode")
+
 func main() {
+
+	flag.Parse()
 
 	config = GenerateConfig()
 	mimeTypeHandler = *newMimeTypeHandler()
@@ -47,6 +54,12 @@ func main() {
 	// Create the upload directory if it doesn't exist
 	if _, err := os.Stat(config.UploadPath); os.IsNotExist(err) {
 		os.MkdirAll(config.UploadPath, os.ModePerm)
+	}
+	var err error
+	hashes, err = buildHashDict(config.UploadPath)
+	if err != nil {
+		fmt.Printf("Error: %v\n", err)
+		return
 	}
 
 	// Create a new HTTP router
@@ -74,6 +87,13 @@ func main() {
 		"Serving images at %s\n"+
 		"Upload path is %s\n",
 		config.Port, config.ServePath, config.UploadPath)
+
+	if *debug {
+		for hash, filename := range hashes {
+			fmt.Printf("MD5 Hash: %s, Filename: %s\n", hash, filename)
+		}
+	}
+
 	log.Fatal(http.ListenAndServe(":"+config.Port, nil))
 }
 
@@ -131,6 +151,8 @@ func notfoundHandler(w http.ResponseWriter) {
 func randfilename(length int, extension string) string {
 	letterRunes := []rune("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ")
 	randomRunes := make([]rune, length)
+	seed := rand.NewSource(time.Now().UnixNano())
+	rand := rand.New(seed)
 	for index := range randomRunes {
 		randomRunes[index] = letterRunes[rand.Intn(len(letterRunes))]
 	}
@@ -195,24 +217,42 @@ func urlUploadHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func writeFileAndReturnURL(w http.ResponseWriter, r *http.Request, file io.Reader) error {
-	// Detect content type and get proper extension
-	ext, fileReader, err := mimeTypeHandler.detectContentType(file)
+
+	hash, err := computeFileHash(file)
 	if err != nil {
-		http.Error(w, "Unsupported file type", http.StatusBadRequest)
 		return err
 	}
+	value, exists := imageHashExists(hash)
 
-	// Ensure filename has correct extension
-	genfilename := randfilename(6, ext)
-	filepath := filepath.Join(config.UploadPath, genfilename)
+	if exists {
+		if *debug {
+			fmt.Printf("Hash %s exists: %s\n", hash, value)
+		}
+		fileURL := constructFileURL(r, value)
+		return respondWithFileURL(w, r, fileURL)
+	} else {
+		if *debug {
+			fmt.Printf("Hash %s does not exist\n", hash)
+		}
+		ext, fileReader, err := mimeTypeHandler.detectContentType(file)
+		if err != nil {
+			http.Error(w, "Unsupported file type", http.StatusBadRequest)
+			return err
+		}
 
-	if err := createAndCopyFile(filepath, fileReader); err != nil {
-		http.Error(w, "Error processing file", http.StatusInternalServerError)
-		return err
+		genfilename := randfilename(6, ext)
+		filepath := filepath.Join(config.UploadPath, genfilename)
+
+		if err := createAndCopyFile(filepath, fileReader); err != nil {
+			http.Error(w, "Error processing file", http.StatusInternalServerError)
+			return err
+		}
+
+		hashes[hash] = genfilename
+
+		fileURL := constructFileURL(r, genfilename)
+		return respondWithFileURL(w, r, fileURL)
 	}
-
-	fileURL := constructFileURL(r, genfilename)
-	return respondWithFileURL(w, r, fileURL)
 }
 
 func createAndCopyFile(filepath string, src io.Reader) error {
