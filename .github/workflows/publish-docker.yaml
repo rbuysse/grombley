@@ -30,4 +30,6 @@ jobs:
           context: .
           file: grombley.dockerfile
           push: true
-          tags: ghcr.io/rbuysse/grombley:${{ github.ref_name }}
+          tags: |
+            ghcr.io/rbuysse/grombley:${{ github.ref_name }}
+            ${{ github.ref == 'refs/heads/publish-docker-latest' && 'ghcr.io/rbuysse/grombley:zella' || '' }}
