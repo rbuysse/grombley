@@ -65,6 +65,7 @@ func main() {
 	http.HandleFunc("/upload", uploadHandler)
 	http.HandleFunc("/url", urlUploadHandler)
 	http.HandleFunc(config.ServePath, serveImageHandler)
+	http.HandleFunc("/all", thumbnailsHandler)
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		filePath := path.Join("templates", r.URL.Path)
 		if r.URL.Path == "/" {
@@ -294,4 +295,29 @@ func respondWithFileURL(w http.ResponseWriter, r *http.Request, url string) erro
 		}
 	}
 	return nil
+}
+
+func thumbnailsHandler(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	fmt.Fprintln(w, `<html><head><style>
+        .gallery {
+            display: flex;
+            flex-wrap: wrap;
+        }
+        .gallery div {
+            margin: 5px;
+        }
+        .gallery img {
+            width: 100px;
+            height: auto;
+        }
+    </style></head><body>`)
+	fmt.Fprintln(w, `<div class="gallery">`)
+
+	for _, filename := range hashes {
+		fileURL := constructFileURL(r, filename)
+		fmt.Fprintf(w, `<div><a href="%s"><img src="%s"></a></div>`, fileURL, fileURL)
+	}
+
+	fmt.Fprintln(w, "</div></body></html>")
 }
