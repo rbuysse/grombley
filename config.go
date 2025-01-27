@@ -19,6 +19,7 @@ func GenerateConfig() Config {
 	// Parse the command-line flags and load the config
 	var bindOpt string
 	var configFile string
+	var debugOpt bool
 	var servePathOpt string
 	var uploadPathOpt string
 
@@ -26,6 +27,7 @@ func GenerateConfig() Config {
 	flag.StringVar(&bindOpt, "bind", "", "address:port to run the server on")
 	flag.StringVar(&configFile, "c", "", "Path to the configuration file")
 	flag.StringVar(&configFile, "config", "", "Path to the configuration file")
+	flag.BoolVar(&debugOpt, "debug", false, "enable debug mode")
 	flag.StringVar(&servePathOpt, "s", "", "Path to serve images from")
 	flag.StringVar(&servePathOpt, "serve-path", "", "Path to serve images from")
 	flag.StringVar(&uploadPathOpt, "u", "", "Path to store uploaded images")
@@ -64,6 +66,10 @@ func GenerateConfig() Config {
 		if *option != "" {
 			*configField = *option
 		}
+	}
+
+	if debugOpt {
+		config.Debug = true
 	}
 
 	return config
