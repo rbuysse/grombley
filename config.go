@@ -19,13 +19,15 @@ func GenerateConfig() Config {
 	// Parse the command-line flags and load the config
 	var bindOpt string
 	var configFile string
+	var debugOpt bool
 	var servePathOpt string
 	var uploadPathOpt string
 
-	flag.StringVar(&bindOpt, "b", "0.0.0.0:3000", "address:port to run the server on")
-	flag.StringVar(&bindOpt, "bind", "0.0.0.0:3000", "address:port to run the server on")
-	flag.StringVar(&configFile, "c", "config.toml", "Path to the configuration file")
-	flag.StringVar(&configFile, "config", "config.toml", "Path to the configuration file")
+	flag.StringVar(&bindOpt, "b", "", "address:port to run the server on")
+	flag.StringVar(&bindOpt, "bind", "", "address:port to run the server on")
+	flag.StringVar(&configFile, "c", "", "Path to the configuration file")
+	flag.StringVar(&configFile, "config", "", "Path to the configuration file")
+	flag.BoolVar(&debugOpt, "debug", false, "enable debug mode")
 	flag.StringVar(&servePathOpt, "s", "", "Path to serve images from")
 	flag.StringVar(&servePathOpt, "serve-path", "", "Path to serve images from")
 	flag.StringVar(&uploadPathOpt, "u", "", "Path to store uploaded images")
@@ -39,8 +41,13 @@ func GenerateConfig() Config {
 		flag.Parse()
 	}
 
+	if configFile == "" {
+		configFile = "config.toml"
+	}
+
 	// Load the config file if it exists otherwise use default values
 	if _, err := os.Stat(configFile); err != nil {
+		fmt.Printf("Config file %v not found, using default values\n", configFile)
 		config.Bind = "0.0.0.0:3000"
 		config.ServePath = "/i/"
 		config.UploadPath = "./uploads/"
@@ -59,6 +66,10 @@ func GenerateConfig() Config {
 		if *option != "" {
 			*configField = *option
 		}
+	}
+
+	if debugOpt {
+		config.Debug = true
 	}
 
 	return config

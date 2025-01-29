@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"embed"
 	"encoding/json"
-	"flag"
 	"fmt"
 	"io"
 	"log"
@@ -19,6 +18,7 @@ import (
 
 type Config struct {
 	Bind       string `toml:"bind"`
+	Debug      bool   `toml:"debug"`
 	ServePath  string `toml:"serve_path"`
 	UploadPath string `toml:"upload_path"`
 }
@@ -41,11 +41,7 @@ var supportedMimeTypes = map[string]string{
 	"image/gif":  "gif",
 }
 
-var debug = flag.Bool("debug", false, "enable debug mode")
-
 func main() {
-
-	flag.Parse()
 
 	config = GenerateConfig()
 	mimeTypeHandler = *newMimeTypeHandler()
@@ -86,7 +82,7 @@ func main() {
 
 		config.Bind, config.ServePath, config.UploadPath)
 
-	if *debug {
+	if config.Debug {
 		for hash, filename := range hashes {
 			fmt.Printf("MD5 Hash: %s, Filename: %s\n", hash, filename)
 		}
@@ -223,13 +219,13 @@ func writeFileAndReturnURL(w http.ResponseWriter, r *http.Request, file io.Reade
 	value, exists := imageHashExists(hash)
 
 	if exists {
-		if *debug {
+		if config.Debug {
 			fmt.Printf("Hash %s exists: %s\n", hash, value)
 		}
 		fileURL := constructFileURL(r, value)
 		return respondWithFileURL(w, r, fileURL)
 	} else {
-		if *debug {
+		if config.Debug {
 			fmt.Printf("Hash %s does not exist\n", hash)
 		}
 		ext, fileReader, err := mimeTypeHandler.detectContentType(file)
