@@ -48,6 +48,7 @@ func main() {
 
 	// Create the upload directory if it doesn't exist
 	if _, err := os.Stat(config.UploadPath); os.IsNotExist(err) {
+		fmt.Printf("Creating upload directory at %s\n", config.UploadPath)
 		os.MkdirAll(config.UploadPath, os.ModePerm)
 	}
 	var err error
