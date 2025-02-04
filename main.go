@@ -5,6 +5,9 @@ import (
 	"embed"
 	"encoding/json"
 	"fmt"
+	"image"
+	"image/jpeg"
+	"image/png"
 	"io"
 	"log"
 	"math/rand"
@@ -19,6 +22,7 @@ import (
 type Config struct {
 	Bind       string `toml:"bind"`
 	Debug      bool   `toml:"debug"`
+	Thumbs     bool   `toml:"thumbs"`
 	ServePath  string `toml:"serve_path"`
 	UploadPath string `toml:"upload_path"`
 }
@@ -51,6 +55,12 @@ func main() {
 		fmt.Printf("Creating upload directory at %s\n", config.UploadPath)
 		os.MkdirAll(config.UploadPath, os.ModePerm)
 	}
+	if config.Thumbs {
+		if _, err := os.Stat(config.UploadPath + "/thumbs"); os.IsNotExist(err) {
+			fmt.Printf("Creating thumbnail directory at %s\n", config.UploadPath+"/thumbs")
+			os.MkdirAll(config.UploadPath+"/thumbs", os.ModePerm)
+		}
+	}
 	var err error
 
 	hashesChan := make(chan map[string]string)
@@ -63,7 +73,19 @@ func main() {
 			errChan <- err
 			return
 		}
+
 		hashesChan <- hashes
+
+		if config.Thumbs {
+			for _, filename := range hashes {
+				thumbPath := filepath.Join(config.UploadPath, "thumbs", filepath.Base(filename))
+				if _, err := os.Stat(thumbPath); os.IsNotExist(err) {
+					if err := makeThumb(filepath.Join(config.UploadPath, filename)); err != nil {
+						fmt.Printf("Error creating thumbnail for %s: %v\n", filename, err)
+					}
+				}
+			}
+		}
 	}()
 
 	// Create a new HTTP router
@@ -89,9 +111,9 @@ func main() {
 
 	fmt.Printf("Server is running on http://%s\n"+
 		"Serving images at %s\n"+
-		"Upload path is %s\n",
-
-		config.Bind, config.ServePath, config.UploadPath)
+		"Upload path is %s\n"+
+		"Thumbs is %t\n",
+		config.Bind, config.ServePath, config.UploadPath, config.Thumbs)
 
 	select {
 	case hashes = <-hashesChan:
@@ -101,6 +123,7 @@ func main() {
 	}
 
 	if config.Debug {
+		fmt.Printf("config: %+v\n", config)
 		for hash, filename := range hashes {
 			fmt.Printf("MD5 Hash: %s, Filename: %s\n", hash, filename)
 		}
@@ -277,6 +300,12 @@ func writeFileAndReturnURL(w http.ResponseWriter, r *http.Request, file io.Reade
 			return err
 		}
 
+		if config.Thumbs {
+			if err := makeThumb(filepath); err != nil {
+				fmt.Printf("Error creating thumbnail for %s: %v\n", filepath, err)
+			}
+		}
+
 		hashes[hash] = genfilename
 
 		fileURL := constructFileURL(r, genfilename)
@@ -325,4 +354,57 @@ func respondWithFileURL(w http.ResponseWriter, r *http.Request, url string) erro
 		}
 	}
 	return nil
+}
+
+func makeThumb(filename string) error {
+	file, err := os.Open(filename)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+
+	fileInfo, err := file.Stat()
+	if err != nil {
+		return err
+	}
+
+	img, format, err := image.Decode(file)
+	if err != nil {
+		return err
+	}
+
+	newWidth := img.Bounds().Dx() / 4
+	newHeight := img.Bounds().Dy() / 4
+
+	newImg := image.NewRGBA(image.Rect(0, 0, newWidth, newHeight))
+
+	for y := 0; y < newHeight; y++ {
+		for x := 0; x < newWidth; x++ {
+			srcX := x * 4
+			srcY := y * 4
+			newImg.Set(x, y, img.At(srcX, srcY))
+		}
+	}
+
+	outputPath := filepath.Join(config.UploadPath, "thumbs", filepath.Base(filename))
+	outFile, err := os.Create(outputPath)
+	if err != nil {
+		return err
+	}
+	defer outFile.Close()
+
+	switch format {
+	case "jpeg":
+		err = jpeg.Encode(outFile, newImg, nil)
+	case "png":
+		err = png.Encode(outFile, newImg)
+	default:
+		err = jpeg.Encode(outFile, newImg, nil)
+	}
+	if err != nil {
+		return err
+	}
+
+	// keep timestate stamp
+	return os.Chtimes(outputPath, fileInfo.ModTime(), fileInfo.ModTime())
 }

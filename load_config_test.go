@@ -17,6 +17,7 @@ func TestLoadConfig(t *testing.T) {
 bind = "localhost:666"
 serve_path = "/p/"
 upload_path = "./grapes/"
+thumbs = false
 `
 	if _, err := tempFile.Write([]byte(configContent)); err != nil {
 		t.Fatalf("Error writing to temporary file: %v", err)
@@ -38,6 +39,11 @@ upload_path = "./grapes/"
 	expectedUploadPath := "./grapes/"
 	if config.UploadPath != expectedUploadPath {
 		t.Errorf("Expected upload_path to be %s, but got %s", expectedUploadPath, config.UploadPath)
+	}
+
+	expectedThumbs := false
+	if config.Thumbs != expectedThumbs {
+		t.Errorf("Expected thumbs to be %v, but got %v", expectedThumbs, config.Thumbs)
 	}
 
 	// Test merging logic with some values missing
