@@ -12,6 +12,7 @@ import (
 const usage = `Usage:
   -b, --bind           address:port to run the server on (default: 0.0.0.0:3000)
   -c, --config         Path to a configuration file (default: config.toml)
+  -t, --thumbs         Generate thumbnails for uploaded images
   -s, --serve-path     Path to serve images from (default: /i/)
   -u, --upload-path    Path to store uploaded images (default: ./uploads/)`
 
@@ -21,7 +22,9 @@ func GenerateConfig() Config {
 	var configFile string
 	var debugOpt bool
 	var servePathOpt string
+	var thumbsOpt bool
 	var uploadPathOpt string
+	var thumbsOptSet bool
 
 	flag.StringVar(&bindOpt, "b", "", "address:port to run the server on")
 	flag.StringVar(&bindOpt, "bind", "", "address:port to run the server on")
@@ -30,6 +33,8 @@ func GenerateConfig() Config {
 	flag.BoolVar(&debugOpt, "debug", false, "enable debug mode")
 	flag.StringVar(&servePathOpt, "s", "", "Path to serve images from")
 	flag.StringVar(&servePathOpt, "serve-path", "", "Path to serve images from")
+	flag.BoolVar(&thumbsOpt, "t", true, "Generate thumbnails for uploaded images")
+	flag.BoolVar(&thumbsOpt, "thumbs", true, "Generate thumbnails for uploaded images")
 	flag.StringVar(&uploadPathOpt, "u", "", "Path to store uploaded images")
 	flag.StringVar(&uploadPathOpt, "upload-path", "", "Path to store uploaded images")
 
@@ -50,9 +55,11 @@ func GenerateConfig() Config {
 		fmt.Printf("Config file %v not found, using default values\n", configFile)
 		config.Bind = "0.0.0.0:3000"
 		config.ServePath = "/i/"
+		config.Thumbs = true
 		config.UploadPath = "./uploads/"
 	} else {
 		config = loadConfig(configFile)
+		fmt.Printf("Loaded config from %v\n", configFile)
 	}
 
 	// Override the config values with the command-line flags
@@ -70,6 +77,16 @@ func GenerateConfig() Config {
 
 	if debugOpt {
 		config.Debug = true
+	}
+
+	flag.Visit(func(f *flag.Flag) {
+		if f.Name == "thumbs" || f.Name == "t" {
+			thumbsOptSet = true
+		}
+	})
+
+	if thumbsOptSet {
+		config.Thumbs = thumbsOpt
 	}
 
 	return config
