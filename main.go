@@ -48,14 +48,23 @@ func main() {
 
 	// Create the upload directory if it doesn't exist
 	if _, err := os.Stat(config.UploadPath); os.IsNotExist(err) {
+		fmt.Printf("Creating upload directory at %s\n", config.UploadPath)
 		os.MkdirAll(config.UploadPath, os.ModePerm)
 	}
 	var err error
+
+	hashesChan := make(chan map[string]string)
+	errChan := make(chan error)
+
 	hashes, err = buildHashDict(config.UploadPath)
-	if err != nil {
-		fmt.Printf("Error: %v\n", err)
-		return
-	}
+	go func() {
+		hashes, err := buildHashDict(config.UploadPath)
+		if err != nil {
+			errChan <- err
+			return
+		}
+		hashesChan <- hashes
+	}()
 
 	// Create a new HTTP router
 	http.HandleFunc("/upload", uploadHandler)
@@ -81,6 +90,13 @@ func main() {
 		"Upload path is %s\n",
 
 		config.Bind, config.ServePath, config.UploadPath)
+
+	select {
+	case hashes = <-hashesChan:
+	case err = <-errChan:
+		fmt.Printf("Error: %v\n", err)
+		return
+	}
 
 	if config.Debug {
 		for hash, filename := range hashes {
