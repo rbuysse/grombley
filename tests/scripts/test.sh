@@ -84,6 +84,31 @@ else
 fi
 
 
+# --== MP3 Upload Test ==--
+
+printf "Testing MP3 upload: "
+
+MP3LOC=$(
+  curl -s \
+    -H "Accept: application/json" \
+    -F 'file=@/tmp/test.mp3' grombley:3000/upload \
+      | grep -oP '(?<="url":")[^"]+'
+)
+
+curl --fail-with-body -s -I "$MP3LOC" | tee > /tmp/mp3
+
+CONTENT_TYPE_MP3="Content-Type: audio/mpeg"
+
+if grep -q "$CONTENT_TYPE_MP3" /tmp/mp3; then
+  printf "✅ - MP3 upload success\n\n"
+else
+  printf "❌ - MP3 upload failed\n\n"
+  echo "Expected: $CONTENT_TYPE_MP3"
+  echo "Response headers:"
+  cat /tmp/mp3
+  ERRORS=$((ERRORS+1))
+fi
+
 # --== Make sure embedFS is working ==--
 
 printf "Testing embedFS: "
