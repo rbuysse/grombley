@@ -39,6 +39,7 @@ var supportedMimeTypes = map[string]string{
 	"image/jpeg": "jpg",
 	"image/png":  "png",
 	"image/gif":  "gif",
+	"audio/mpeg": "mp3",
 }
 
 func main() {
@@ -124,7 +125,7 @@ func newMimeTypeHandler() *MimeTypeHandler {
 	}
 }
 
-func (m *MimeTypeHandler) detectContentType(file io.Reader) (string, io.Reader, error) {
+func (m *MimeTypeHandler) detectContentTypeWithFilename(file io.Reader, filename string) (string, io.Reader, error) {
 	buffer := make([]byte, 512)
 	n, err := file.Read(buffer)
 	if err != nil && err != io.EOF {
@@ -136,6 +137,13 @@ func (m *MimeTypeHandler) detectContentType(file io.Reader) (string, io.Reader, 
 
 	ext, ok := m.mimeToExt[contentType]
 	if !ok {
+		// Fallback: check file extension if content detection fails
+		fileExt := filepath.Ext(filename)
+		if mime, exists := m.extToMime[fileExt]; exists {
+			if supportedExt, supported := m.mimeToExt[mime]; supported {
+				return "." + supportedExt, combinedReader, nil
+			}
+		}
 		return "", nil, fmt.Errorf("unsupported type: %s", contentType)
 	}
 
@@ -201,7 +209,7 @@ func uploadHandler(w http.ResponseWriter, r *http.Request) {
 	r.ParseMultipartForm(10 << 20) // 10 MB max in-memory size
 
 	// Get the uploaded file
-	file, _, err := r.FormFile("file") // "file" should match the name attribute in your HTML form
+	file, fileHeader, err := r.FormFile("file") // "file" should match the name attribute in your HTML form
 	if err != nil {
 		fmt.Println("Error retrieving the file:", err)
 		http.Error(w, "Error retrieving the file", http.StatusBadRequest)
@@ -209,7 +217,7 @@ func uploadHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	defer file.Close()
 
-	writeFileAndReturnURL(w, r, file)
+	writeFileAndReturnURL(w, r, file, fileHeader.Filename)
 }
 
 func urlUploadHandler(w http.ResponseWriter, r *http.Request) {
@@ -223,10 +231,10 @@ func urlUploadHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	defer resp.Body.Close()
 
-	writeFileAndReturnURL(w, r, resp.Body)
+	writeFileAndReturnURL(w, r, resp.Body, urlString)
 }
 
-func writeFileAndReturnURL(w http.ResponseWriter, r *http.Request, file io.Reader) error {
+func writeFileAndReturnURL(w http.ResponseWriter, r *http.Request, file io.Reader, filename string) error {
 
 	hash, err := computeFileHash(file)
 	if err != nil {
@@ -244,7 +252,7 @@ func writeFileAndReturnURL(w http.ResponseWriter, r *http.Request, file io.Reade
 		if config.Debug {
 			fmt.Printf("Hash %s does not exist\n", hash)
 		}
-		ext, fileReader, err := mimeTypeHandler.detectContentType(file)
+		ext, fileReader, err := mimeTypeHandler.detectContentTypeWithFilename(file, filename)
 		if err != nil {
 			http.Error(w, "Unsupported file type", http.StatusBadRequest)
 			return err
@@ -289,6 +297,7 @@ func constructFileURL(r *http.Request, filename string) string {
 
 func respondWithFileURL(w http.ResponseWriter, r *http.Request, url string) error {
 	acceptHeader := r.Header.Get("Accept")
+
 	switch acceptHeader {
 	case "application/json":
 		w.Header().Set("Content-Type", "application/json")
