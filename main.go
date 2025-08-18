@@ -67,6 +67,8 @@ func main() {
 	}()
 
 	// Create a new HTTP router
+	http.HandleFunc("/livez", livezHandler)
+	http.HandleFunc("/readyz", readyzHandler)
 	http.HandleFunc("/upload", uploadHandler)
 	http.HandleFunc("/url", urlUploadHandler)
 	http.HandleFunc(config.ServePath, serveImageHandler)
@@ -158,6 +160,19 @@ func notfoundHandler(w http.ResponseWriter) {
 	tmpl.Execute(w, nil)
 }
 
+func livezHandler(w http.ResponseWriter, req *http.Request) {
+	_, verbose := req.URL.Query()["verbose"]
+	if !verbose {
+		fmt.Fprintf(w, "200")
+		return
+	}
+	// Print extra info if verbose is present http://foo.bar:3000/livez?verbose
+	fmt.Fprintf(w, "Server is running on http://%s\n", config.Bind)
+	fmt.Fprintf(w, "Serving images at %s\n", config.ServePath)
+	fmt.Fprintf(w, "Upload path is %s\n", config.UploadPath)
+	fmt.Fprintf(w, "%d image hashes in memory\n", len(hashes))
+}
+
 func randfilename(length int, extension string) string {
 	letterRunes := []rune("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ")
 	randomRunes := make([]rune, length)
@@ -167,6 +182,10 @@ func randfilename(length int, extension string) string {
 		randomRunes[index] = letterRunes[rand.Intn(len(letterRunes))]
 	}
 	return string(randomRunes) + extension
+}
+
+func readyzHandler(w http.ResponseWriter, req *http.Request) {
+	fmt.Fprintf(w, "200")
 }
 
 func serveImageHandler(w http.ResponseWriter, r *http.Request) {

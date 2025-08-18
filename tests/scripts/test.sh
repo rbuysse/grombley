@@ -112,6 +112,45 @@ else
   ERRORS=$((ERRORS+1))
 fi
 
+# --== Test livez page works ==--
+
+printf "Testing livez page: "
+
+RESPONSE=$(curl -s grombley:3000/livez)
+
+if echo "$RESPONSE" | grep -q "200"; then
+  printf "✅ - livez works\n\n"
+else
+  printf "❌ - livez's busted\n\n"
+  echo "RESPONSE is: $RESPONSE"
+  ERRORS=$((ERRORS+1))
+fi
+
+printf "Testing verbose livez page: "
+
+RESPONSE=$(curl -s grombley:3000/livez?verbose)
+
+if echo "$RESPONSE" | grep -q "image hashes in memory"; then
+  printf "✅ - verbose livez works\n\n"
+else
+  printf "❌ - verbose livez's busted\n\n"
+  echo "RESPONSE is: $RESPONSE"
+  ERRORS=$((ERRORS+1))
+fi
+
+# --== Test readyz page works ==--
+printf "Testing readyz page: "
+
+RESPONSE=$(curl -s grombley:3000/readyz)
+
+if echo "$RESPONSE" | grep -q "200"; then
+  printf "✅ - readyz works\n\n"
+else
+  printf "❌ - readyz's busted\n\n"
+  echo "RESPONSE is: $RESPONSE"
+  ERRORS=$((ERRORS+1))
+fi
+
 if [ $ERRORS -eq 0 ]; then
   printf "All tests passed: ✅ - 😊\n"
 else
