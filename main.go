@@ -8,6 +8,7 @@ import (
 	"io"
 	"log"
 	"math/rand"
+	"mime/multipart"
 	"net/http"
 	"os"
 	"path"
@@ -213,6 +214,52 @@ func serveImageHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 		return
 	}
+}
+
+// processUploadedFile handles a single file upload and returns the filename
+func processUploadedFile(fileHeader *multipart.FileHeader) (string, error) {
+	file, err := fileHeader.Open()
+	if err != nil {
+		return "", err
+	}
+	defer file.Close()
+
+	hash, err := computeFileHash(file)
+	if err != nil {
+		return "", err
+	}
+
+	// check if file already exists
+	if value, exists := imageHashExists(hash); exists {
+		return value, nil
+	}
+
+	// reset file reader after hash computation
+	if seeker, ok := file.(io.Seeker); ok {
+		seeker.Seek(0, 0)
+	} else {
+		file.Close()
+		file, err = fileHeader.Open()
+		if err != nil {
+			return "", err
+		}
+		defer file.Close()
+	}
+
+	ext, fileReader, err := mimeTypeHandler.detectContentType(file)
+	if err != nil {
+		return "", err
+	}
+
+	genfilename := randfilename(6, ext)
+	filepath := filepath.Join(config.UploadPath, genfilename)
+
+	if err := createAndCopyFile(filepath, fileReader); err != nil {
+		return "", err
+	}
+
+	hashes[hash] = genfilename
+	return genfilename, nil
 }
 
 func uploadHandler(w http.ResponseWriter, r *http.Request) {
