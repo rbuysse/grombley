@@ -12,15 +12,17 @@ import (
 const usage = `Usage:
   -b, --bind           address:port to run the server on (default: 0.0.0.0:3000)
   -c, --config         Path to a configuration file (default: config.toml)
+  -g, --gallery-path   Path to store gallery metadata (default: ./galleries/)
   -s, --serve-path     Path to serve images from (default: /i/)
   -u, --upload-path    Path to store uploaded images (default: ./uploads/)`
 
 // Default config
 func defaultConfig() Config {
 	return Config{
-		Bind:       "0.0.0.0:3000",
-		ServePath:  "/i/",
-		UploadPath: "./uploads/",
+		Bind:        "0.0.0.0:3000",
+		ServePath:   "/i/",
+		UploadPath:  "./uploads/",
+		GalleryPath: "./galleries/",
 	}
 }
 
@@ -31,12 +33,15 @@ func GenerateConfig() Config {
 	var debugOpt bool
 	var servePathOpt string
 	var uploadPathOpt string
+	var galleryPathOpt string
 
 	flag.StringVar(&bindOpt, "b", "", "address:port to run the server on")
 	flag.StringVar(&bindOpt, "bind", "", "address:port to run the server on")
 	flag.StringVar(&configFile, "c", "", "Path to the configuration file")
 	flag.StringVar(&configFile, "config", "", "Path to the configuration file")
 	flag.BoolVar(&debugOpt, "debug", false, "enable debug mode")
+	flag.StringVar(&galleryPathOpt, "g", "", "Path to store gallery metadata")
+	flag.StringVar(&galleryPathOpt, "gallery-path", "", "Path to store gallery metadata")
 	flag.StringVar(&servePathOpt, "s", "", "Path to serve images from")
 	flag.StringVar(&servePathOpt, "serve-path", "", "Path to serve images from")
 	flag.StringVar(&uploadPathOpt, "u", "", "Path to store uploaded images")
@@ -76,9 +81,10 @@ func GenerateConfig() Config {
 
 	// Override the config values with the command-line flags
 	options := map[*string]*string{
-		&bindOpt:       &config.Bind,
-		&servePathOpt:  &config.ServePath,
-		&uploadPathOpt: &config.UploadPath,
+		&bindOpt:        &config.Bind,
+		&galleryPathOpt: &config.GalleryPath,
+		&servePathOpt:   &config.ServePath,
+		&uploadPathOpt:  &config.UploadPath,
 	}
 
 	for option, configField := range options {
@@ -99,9 +105,10 @@ func loadConfig(configFile string) Config {
 
 	// Temporary struct to decode TOML file
 	var tempConfig struct {
-		Bind       string `toml:"bind"`
-		ServePath  string `toml:"serve_path"`
-		UploadPath string `toml:"upload_path"`
+		Bind        string `toml:"bind"`
+		ServePath   string `toml:"serve_path"`
+		UploadPath  string `toml:"upload_path"`
+		GalleryPath string `toml:"gallery_path"`
 	}
 
 	if _, err := toml.DecodeFile(configFile, &tempConfig); err != nil {
@@ -117,6 +124,9 @@ func loadConfig(configFile string) Config {
 	}
 	if tempConfig.UploadPath != "" {
 		config.UploadPath = tempConfig.UploadPath
+	}
+	if tempConfig.GalleryPath != "" {
+		config.GalleryPath = tempConfig.GalleryPath
 	}
 
 	return config

@@ -25,10 +25,11 @@ type Gallery struct {
 }
 
 type Config struct {
-	Bind       string `toml:"bind"`
-	Debug      bool   `toml:"debug"`
-	ServePath  string `toml:"serve_path"`
-	UploadPath string `toml:"upload_path"`
+	Bind        string `toml:"bind"`
+	Debug       bool   `toml:"debug"`
+	ServePath   string `toml:"serve_path"`
+	UploadPath  string `toml:"upload_path"`
+	GalleryPath string `toml:"gallery_path"`
 }
 
 type MimeTypeHandler struct {
@@ -61,8 +62,9 @@ func main() {
 	}
 
 	// create galleries directory if it doesn't exist
-	if _, err := os.Stat("galleries"); os.IsNotExist(err) {
-		os.MkdirAll("galleries", os.ModePerm)
+	if _, err := os.Stat(config.GalleryPath); os.IsNotExist(err) {
+		fmt.Printf("Creating gallery directory at %s\n", config.GalleryPath)
+		os.MkdirAll(config.GalleryPath, os.ModePerm)
 	}
 
 	var err error
@@ -104,9 +106,10 @@ func main() {
 
 	fmt.Printf("Server is running on http://%s\n"+
 		"Serving images at %s\n"+
-		"Upload path is %s\n",
+		"Upload path is %s\n"+
+		"Gallery path is %s\n",
 
-		config.Bind, config.ServePath, config.UploadPath)
+		config.Bind, config.ServePath, config.UploadPath, config.GalleryPath)
 
 	select {
 	case hashes = <-hashesChan:
