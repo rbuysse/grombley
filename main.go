@@ -13,9 +13,16 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"strings"
 	"text/template"
 	"time"
 )
+
+type Gallery struct {
+	ID      string    `json:"id"`
+	Images  []string  `json:"images"`
+	Created time.Time `json:"created"`
+}
 
 type Config struct {
 	Bind       string `toml:"bind"`
@@ -52,6 +59,12 @@ func main() {
 		fmt.Printf("Creating upload directory at %s\n", config.UploadPath)
 		os.MkdirAll(config.UploadPath, os.ModePerm)
 	}
+
+	// create galleries directory if it doesn't exist
+	if _, err := os.Stat("galleries"); os.IsNotExist(err) {
+		os.MkdirAll("galleries", os.ModePerm)
+	}
+
 	var err error
 
 	hashesChan := make(chan map[string]string)
@@ -72,6 +85,7 @@ func main() {
 	http.HandleFunc("/readyz", readyzHandler)
 	http.HandleFunc("/upload", uploadHandler)
 	http.HandleFunc("/url", urlUploadHandler)
+	http.HandleFunc("/g/", galleryHandler)
 	http.HandleFunc(config.ServePath, serveImageHandler)
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		filePath := path.Join("templates", r.URL.Path)
@@ -260,6 +274,65 @@ func processUploadedFile(fileHeader *multipart.FileHeader) (string, error) {
 
 	hashes[hash] = genfilename
 	return genfilename, nil
+}
+
+// createGallery saves gallery data and returns the gallery URL
+func createGallery(r *http.Request, imageFilenames []string) (string, error) {
+	galleryID := randfilename(6, "")
+	gallery := Gallery{
+		ID:      galleryID,
+		Images:  imageFilenames,
+		Created: time.Now(),
+	}
+
+	galleryPath := filepath.Join(config.GalleryPath, galleryID+".json")
+	os.MkdirAll(config.GalleryPath, os.ModePerm)
+
+	galleryJSON, err := json.Marshal(gallery)
+	if err != nil {
+		return "", err
+	}
+
+	if err := os.WriteFile(galleryPath, galleryJSON, 0644); err != nil {
+		return "", err
+	}
+
+	return fmt.Sprintf("http://%s/g/%s", r.Host, galleryID), nil
+}
+
+func galleryHandler(w http.ResponseWriter, r *http.Request) {
+	galleryID := strings.TrimPrefix(r.URL.Path, "/g/")
+	if galleryID == "" {
+		notfoundHandler(w)
+		return
+	}
+
+	galleryPath := filepath.Join(config.GalleryPath, galleryID+".json")
+	galleryData, err := os.ReadFile(galleryPath)
+	if err != nil {
+		notfoundHandler(w)
+		return
+	}
+
+	var gallery Gallery
+	if err := json.Unmarshal(galleryData, &gallery); err != nil {
+		notfoundHandler(w)
+		return
+	}
+
+	// build full urls for images
+	var imageURLs []string
+	for _, img := range gallery.Images {
+		imageURLs = append(imageURLs, fmt.Sprintf("%s%s", config.ServePath, img))
+	}
+
+	// serve gallery template
+	tmpl, err := template.ParseFS(templatesFolder, "templates/gallery.html")
+	if err != nil {
+		http.Error(w, "Error loading template", http.StatusInternalServerError)
+		return
+	}
+	tmpl.Execute(w, imageURLs)
 }
 
 func uploadHandler(w http.ResponseWriter, r *http.Request) {
