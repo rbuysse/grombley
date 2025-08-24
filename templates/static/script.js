@@ -19,7 +19,11 @@ document.addEventListener("DOMContentLoaded", () => {
   });
 
   fileInputField.addEventListener("change", (e) => {
-    handleFileUpload(fileInputField.files[0]);
+    if (fileInputField.files.length > 1) {
+      handleMultipleFileUpload(fileInputField.files);
+    } else if (fileInputField.files.length === 1) {
+      handleFileUpload(fileInputField.files[0]);
+    }
   });
 
   dropArea.addEventListener("dragover", (e) => {
@@ -35,8 +39,11 @@ document.addEventListener("DOMContentLoaded", () => {
     e.preventDefault();
     dropArea.classList.remove("drag-over");
 
-    const file = e.dataTransfer.files[0];
-    handleFileUpload(file);
+    if (e.dataTransfer.files.length > 1) {
+      handleMultipleFileUpload(e.dataTransfer.files);
+    } else if (e.dataTransfer.files.length === 1) {
+      handleFileUpload(e.dataTransfer.files[0]);
+    }
   });
 
   document.addEventListener("paste", (event) => {
@@ -106,6 +113,20 @@ document.addEventListener("DOMContentLoaded", () => {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({ url: url }),
+    });
+  }
+
+  function handleMultipleFileUpload(files) {
+    const formData = new FormData();
+    for (let i = 0; i < files.length; i++) {
+      formData.append("file", files[i]);
+    }
+    fetchRequest("/upload", {
+      method: "POST",
+      headers: {
+        Accept: "application/json",
+      },
+      body: formData,
     });
   }
 });

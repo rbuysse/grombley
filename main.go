@@ -11,6 +11,7 @@ import (
 	"io"
 	"log"
 	"math/rand"
+	"mime/multipart"
 	"net/http"
 	"os"
 	"path"
@@ -19,6 +20,12 @@ import (
 	"text/template"
 	"time"
 )
+
+type Gallery struct {
+	ID      string    `json:"id"`
+	Images  []string  `json:"images"`
+	Created time.Time `json:"created"`
+}
 
 type Config struct {
 	Bind       string `toml:"bind"`
@@ -55,6 +62,12 @@ func main() {
 		fmt.Printf("Creating upload directory at %s\n", config.UploadPath)
 		os.MkdirAll(config.UploadPath, os.ModePerm)
 	}
+
+	// create galleries directory if it doesn't exist
+	if _, err := os.Stat("galleries"); os.IsNotExist(err) {
+		os.MkdirAll("galleries", os.ModePerm)
+	}
+
 	var err error
 
 	hashesChan := make(chan map[string]string)
@@ -76,6 +89,7 @@ func main() {
 	http.HandleFunc("/t/", serveThumbnailImageHandler)
 	http.HandleFunc("/upload", uploadHandler)
 	http.HandleFunc("/url", urlUploadHandler)
+	http.HandleFunc("/g/", galleryHandler)
 	http.HandleFunc(config.ServePath, serveImageHandler)
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		filePath := path.Join("templates", r.URL.Path)
@@ -279,20 +293,171 @@ func shrinkImage(reader io.Reader, factor int) (image.Image, string, error) {
 	return dst, format, nil
 }
 
-func uploadHandler(w http.ResponseWriter, r *http.Request) {
-	// Parse the multipart form data with a specified max memory limit (in bytes)
-	r.ParseMultipartForm(10 << 20) // 10 MB max in-memory size
-
-	// Get the uploaded file
-	file, _, err := r.FormFile("file") // "file" should match the name attribute in your HTML form
+// processUploadedFile handles a single file upload and returns the filename
+func processUploadedFile(fileHeader *multipart.FileHeader) (string, error) {
+	file, err := fileHeader.Open()
 	if err != nil {
-		fmt.Println("Error retrieving the file:", err)
-		http.Error(w, "Error retrieving the file", http.StatusBadRequest)
-		return
+		return "", err
 	}
 	defer file.Close()
 
-	writeFileAndReturnURL(w, r, file)
+	hash, err := computeFileHash(file)
+	if err != nil {
+		return "", err
+	}
+
+	// check if file already exists
+	if value, exists := imageHashExists(hash); exists {
+		return value, nil
+	}
+
+	// reset file reader after hash computation
+	if seeker, ok := file.(io.Seeker); ok {
+		seeker.Seek(0, 0)
+	} else {
+		file.Close()
+		file, err = fileHeader.Open()
+		if err != nil {
+			return "", err
+		}
+		defer file.Close()
+	}
+
+	ext, fileReader, err := mimeTypeHandler.detectContentType(file)
+	if err != nil {
+		return "", err
+	}
+
+	genfilename := randfilename(6, ext)
+	filepath := filepath.Join(config.UploadPath, genfilename)
+
+	if err := createAndCopyFile(filepath, fileReader); err != nil {
+		return "", err
+	}
+
+	hashes[hash] = genfilename
+	return genfilename, nil
+}
+
+// createGallery saves gallery data and returns the gallery URL
+func createGallery(r *http.Request, imageFilenames []string) (string, error) {
+	galleryID := randfilename(6, "")
+	gallery := Gallery{
+		ID:      galleryID,
+		Images:  imageFilenames,
+		Created: time.Now(),
+	}
+
+	galleryPath := filepath.Join("galleries", galleryID+".json")
+	os.MkdirAll("galleries", os.ModePerm)
+
+	galleryJSON, err := json.Marshal(gallery)
+	if err != nil {
+		return "", err
+	}
+
+	if err := os.WriteFile(galleryPath, galleryJSON, 0644); err != nil {
+		return "", err
+	}
+
+	return fmt.Sprintf("http://%s/g/%s", r.Host, galleryID), nil
+}
+
+func galleryHandler(w http.ResponseWriter, r *http.Request) {
+	galleryID := strings.TrimPrefix(r.URL.Path, "/g/")
+	if galleryID == "" {
+		notfoundHandler(w)
+		return
+	}
+
+	galleryPath := filepath.Join("galleries", galleryID+".json")
+	galleryData, err := os.ReadFile(galleryPath)
+	if err != nil {
+		notfoundHandler(w)
+		return
+	}
+
+	var gallery Gallery
+	if err := json.Unmarshal(galleryData, &gallery); err != nil {
+		notfoundHandler(w)
+		return
+	}
+
+	// build full urls for images
+	var imageURLs []string
+	for _, img := range gallery.Images {
+		imageURLs = append(imageURLs, fmt.Sprintf("%s%s", config.ServePath, img))
+	}
+
+	// serve gallery template
+	tmpl, err := template.ParseFS(templatesFolder, "templates/gallery.html")
+	if err != nil {
+		http.Error(w, "Error loading template", http.StatusInternalServerError)
+		return
+	}
+	tmpl.Execute(w, imageURLs)
+}
+func uploadHandler(w http.ResponseWriter, r *http.Request) {
+	err := r.ParseMultipartForm(10 << 20) // 10 MB max in-memory size
+	if err != nil {
+		http.Error(w, "Error parsing form", http.StatusBadRequest)
+		return
+	}
+
+	// get all uploaded files
+	var files []*multipart.FileHeader
+	if r.MultipartForm != nil && r.MultipartForm.File != nil {
+		files = r.MultipartForm.File["file"]
+	}
+
+	// fallback to single file method if no files from multipart
+	if len(files) == 0 {
+		file, _, err := r.FormFile("file")
+		if err != nil {
+			fmt.Println("Error retrieving the file:", err)
+			http.Error(w, "Error retrieving the file", http.StatusBadRequest)
+			return
+		}
+		defer file.Close()
+		writeFileAndReturnURL(w, r, file)
+		return
+	}
+
+	// single file - return direct URL
+	if len(files) == 1 {
+		file, err := files[0].Open()
+		if err != nil {
+			http.Error(w, "Error opening file", http.StatusBadRequest)
+			return
+		}
+		defer file.Close()
+		writeFileAndReturnURL(w, r, file)
+		return
+	}
+
+	// multiple files - process and create gallery
+	var imageFilenames []string
+	for _, fileHeader := range files {
+		filename, err := processUploadedFile(fileHeader)
+		if err != nil {
+			continue // skip files that fail to process
+		}
+		imageFilenames = append(imageFilenames, filename)
+	}
+
+	if len(imageFilenames) == 0 {
+		http.Error(w, "No valid images uploaded", http.StatusBadRequest)
+		return
+	}
+
+	// create and return gallery URL
+	galleryURL, err := createGallery(r, imageFilenames)
+	if err != nil {
+		http.Error(w, "Error creating gallery", http.StatusInternalServerError)
+		return
+	}
+
+	respondWithFileURL(w, r, galleryURL)
 }
 
 func urlUploadHandler(w http.ResponseWriter, r *http.Request) {
