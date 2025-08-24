@@ -336,19 +336,66 @@ func galleryHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func uploadHandler(w http.ResponseWriter, r *http.Request) {
-	// Parse the multipart form data with a specified max memory limit (in bytes)
-	r.ParseMultipartForm(10 << 20) // 10 MB max in-memory size
-
-	// Get the uploaded file
-	file, _, err := r.FormFile("file") // "file" should match the name attribute in your HTML form
+	err := r.ParseMultipartForm(10 << 20) // 10 MB max in-memory size
 	if err != nil {
-		fmt.Println("Error retrieving the file:", err)
-		http.Error(w, "Error retrieving the file", http.StatusBadRequest)
+		http.Error(w, "Error parsing form", http.StatusBadRequest)
 		return
 	}
-	defer file.Close()
 
-	writeFileAndReturnURL(w, r, file)
+	// get all uploaded files
+	var files []*multipart.FileHeader
+	if r.MultipartForm != nil && r.MultipartForm.File != nil {
+		files = r.MultipartForm.File["file"]
+	}
+
+	// fallback to single file method if no files from multipart
+	if len(files) == 0 {
+		file, _, err := r.FormFile("file")
+		if err != nil {
+			fmt.Println("Error retrieving the file:", err)
+			http.Error(w, "Error retrieving the file", http.StatusBadRequest)
+			return
+		}
+		defer file.Close()
+		writeFileAndReturnURL(w, r, file)
+		return
+	}
+
+	// single file - return direct URL
+	if len(files) == 1 {
+		file, err := files[0].Open()
+		if err != nil {
+			http.Error(w, "Error opening file", http.StatusBadRequest)
+			return
+		}
+		defer file.Close()
+		writeFileAndReturnURL(w, r, file)
+		return
+	}
+
+	// multiple files - process and create gallery
+	var imageFilenames []string
+	for _, fileHeader := range files {
+		filename, err := processUploadedFile(fileHeader)
+		if err != nil {
+			continue // skip files that fail to process
+		}
+		imageFilenames = append(imageFilenames, filename)
+	}
+
+	if len(imageFilenames) == 0 {
+		http.Error(w, "No valid images uploaded", http.StatusBadRequest)
+		return
+	}
+
+	// create and return gallery URL
+	galleryURL, err := createGallery(r, imageFilenames)
+	if err != nil {
+		http.Error(w, "Error creating gallery", http.StatusInternalServerError)
+		return
+	}
+
+	respondWithFileURL(w, r, galleryURL)
 }
 
 func urlUploadHandler(w http.ResponseWriter, r *http.Request) {
