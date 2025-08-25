@@ -13,6 +13,7 @@ const usage = `Usage:
   -b, --bind           address:port to run the server on (default: 0.0.0.0:3000)
   -c, --config         Path to a configuration file (default: config.toml)
   -s, --serve-path     Path to serve images from (default: /i/)
+  -t, --thumbs         Generate thumbnails for uploaded images
   -u, --upload-path    Path to store uploaded images (default: ./uploads/)`
 
 // Default config
@@ -20,6 +21,7 @@ func defaultConfig() Config {
 	return Config{
 		Bind:       "0.0.0.0:3000",
 		ServePath:  "/i/",
+		Thumbs:     true,
 		UploadPath: "./uploads/",
 	}
 }
@@ -30,6 +32,7 @@ func GenerateConfig() Config {
 	var configFileSet bool
 	var debugOpt bool
 	var servePathOpt string
+	var thumbsOpt bool
 	var uploadPathOpt string
 
 	flag.StringVar(&bindOpt, "b", "", "address:port to run the server on")
@@ -39,6 +42,8 @@ func GenerateConfig() Config {
 	flag.BoolVar(&debugOpt, "debug", false, "enable debug mode")
 	flag.StringVar(&servePathOpt, "s", "", "Path to serve images from")
 	flag.StringVar(&servePathOpt, "serve-path", "", "Path to serve images from")
+	flag.BoolVar(&thumbsOpt, "t", true, "Generate thumbnails for uploaded images")
+	flag.BoolVar(&thumbsOpt, "thumbs", true, "Generate thumbnails for uploaded images")
 	flag.StringVar(&uploadPathOpt, "u", "", "Path to store uploaded images")
 	flag.StringVar(&uploadPathOpt, "upload-path", "", "Path to store uploaded images")
 
@@ -91,6 +96,9 @@ func GenerateConfig() Config {
 		config.Debug = true
 	}
 
+	// Set thumbs option separately
+	config.Thumbs = thumbsOpt
+
 	return config
 }
 
@@ -101,6 +109,7 @@ func loadConfig(configFile string) Config {
 	var tempConfig struct {
 		Bind       string `toml:"bind"`
 		ServePath  string `toml:"serve_path"`
+		Thumbs     bool   `toml:"thumbs"`
 		UploadPath string `toml:"upload_path"`
 	}
 
@@ -117,6 +126,10 @@ func loadConfig(configFile string) Config {
 	}
 	if tempConfig.UploadPath != "" {
 		config.UploadPath = tempConfig.UploadPath
+	}
+
+	if tempConfig.Thumbs != config.Thumbs {
+		config.Thumbs = tempConfig.Thumbs
 	}
 
 	return config
