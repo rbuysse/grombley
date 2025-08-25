@@ -1,4 +1,5 @@
 bind = "0.0.0.0:3000"
 serve_path = "/i/"
 upload_path = "./uploads/"
+gallery_path = "./galleries/"
 
