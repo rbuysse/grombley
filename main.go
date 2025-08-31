@@ -5,6 +5,9 @@ import (
 	"embed"
 	"encoding/json"
 	"fmt"
+	"image"
+	"image/jpeg"
+	"image/png"
 	"io"
 	"log"
 	"math/rand"
@@ -70,6 +73,7 @@ func main() {
 	// Create a new HTTP router
 	http.HandleFunc("/livez", livezHandler)
 	http.HandleFunc("/readyz", readyzHandler)
+	http.HandleFunc("/t/", serveThumbnailImageHandler)
 	http.HandleFunc("/upload", uploadHandler)
 	http.HandleFunc("/url", urlUploadHandler)
 	http.HandleFunc(config.ServePath, serveImageHandler)
@@ -189,8 +193,8 @@ func readyzHandler(w http.ResponseWriter, req *http.Request) {
 	fmt.Fprintf(w, "200")
 }
 
+// Serve original image
 func serveImageHandler(w http.ResponseWriter, r *http.Request) {
-	// Extract the requested image filename from the URL.
 	imageName := filepath.Base(r.URL.Path)
 
 	if err := validateImageName(imageName, config.UploadPath); err != nil {
@@ -219,6 +223,60 @@ func serveImageHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 		return
 	}
+}
+
+// Serve thumbnail (1/4 size)
+func serveThumbnailImageHandler(w http.ResponseWriter, r *http.Request) {
+	imageName := filepath.Base(r.URL.Path)
+	if err := validateImageName(imageName, config.UploadPath); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	imagePath := filepath.Join(config.UploadPath, imageName)
+	imageFile, err := os.Open(imagePath)
+	if err != nil {
+		notfoundHandler(w)
+		return
+	}
+	defer imageFile.Close()
+
+	dst, format, err := shrinkImage(imageFile, 4)
+	if err != nil {
+		http.Error(w, "Failed to shrink image", http.StatusInternalServerError)
+		return
+	}
+
+	if format == "png" {
+		w.Header().Set("Content-Type", "image/png")
+		err = png.Encode(w, dst)
+	} else {
+		w.Header().Set("Content-Type", "image/jpeg")
+		err = jpeg.Encode(w, dst, &jpeg.Options{Quality: 85})
+	}
+	if err != nil {
+		http.Error(w, "Failed to encode image", http.StatusInternalServerError)
+		return
+	}
+}
+
+// shrinkImage reduces the size of an image by the given factor and returns the new image and format.
+func shrinkImage(reader io.Reader, factor int) (image.Image, string, error) {
+	img, format, err := image.Decode(reader)
+	if err != nil {
+		return nil, "", err
+	}
+	bounds := img.Bounds()
+	newW := bounds.Dx() / factor
+	newH := bounds.Dy() / factor
+	dst := image.NewRGBA(image.Rect(0, 0, newW, newH))
+	for y := 0; y < newH; y++ {
+		for x := 0; x < newW; x++ {
+			srcX := x * factor
+			srcY := y * factor
+			dst.Set(x, y, img.At(srcX, srcY))
+		}
+	}
+	return dst, format, nil
 }
 
 func uploadHandler(w http.ResponseWriter, r *http.Request) {
