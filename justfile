@@ -3,6 +3,10 @@ all: run
 build:
   go build
 
+coverage:
+  go test -coverprofile=coverage.out
+  go tool cover -html=coverage.out
+
 docker-build:
   docker build -t grombley -f grombley.dockerfile .
 
