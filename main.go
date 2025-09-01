@@ -12,6 +12,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"strings"
 	"text/template"
 	"time"
 )
@@ -192,6 +193,11 @@ func serveImageHandler(w http.ResponseWriter, r *http.Request) {
 	// Extract the requested image filename from the URL.
 	imageName := filepath.Base(r.URL.Path)
 
+	if err := validateImageName(imageName, config.UploadPath); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
 	// Construct the full path to the image file.
 	imagePath := filepath.Join(config.UploadPath, imageName)
 
@@ -325,4 +331,30 @@ func respondWithFileURL(w http.ResponseWriter, r *http.Request, url string) erro
 		}
 	}
 	return nil
+}
+
+// validateImageName checks for path traversal, empty names, and allowed extensions
+func validateImageName(imageName string, uploadPath string) error {
+	if imageName == "" || imageName == "." || imageName == ".." {
+		return fmt.Errorf("invalid file name")
+	}
+
+	if strings.HasPrefix(imageName, ".") {
+		return fmt.Errorf("invalid file name")
+	}
+
+	imagePath := filepath.Join(uploadPath, imageName)
+	absImagePath, err := filepath.Abs(imagePath)
+	absUploadPath, err2 := filepath.Abs(uploadPath)
+	if err != nil || err2 != nil || !strings.HasPrefix(absImagePath, absUploadPath) {
+		return fmt.Errorf("invalid file path")
+	}
+
+	ext := strings.ToLower(filepath.Ext(imageName))
+	switch ext {
+	case ".jpg", ".jpeg", ".png", ".gif":
+		return nil
+	default:
+		return fmt.Errorf("unsupported file type")
+	}
 }
