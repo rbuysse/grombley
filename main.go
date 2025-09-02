@@ -19,6 +19,8 @@ import (
 	"strings"
 	"text/template"
 	"time"
+
+	"github.com/rwcarlsen/goexif/exif"
 )
 
 type Gallery struct {
@@ -268,17 +270,118 @@ func serveThumbnailImageHandler(w http.ResponseWriter, r *http.Request) {
 		err = jpeg.Encode(w, dst, &jpeg.Options{Quality: 85})
 	}
 	if err != nil {
-		http.Error(w, "Failed to encode image", http.StatusInternalServerError)
+		// Can't send error after starting to write response body
+		log.Printf("Failed to encode thumbnail image: %v", err)
 		return
 	}
 }
 
+// getExifOrientation reads EXIF orientation from image data
+func getExifOrientation(reader io.Reader) int {
+	x, err := exif.Decode(reader)
+	if err != nil {
+		return 1 // default orientation if no EXIF data
+	}
+
+	orientation, err := x.Get(exif.Orientation)
+	if err != nil {
+		return 1 // default orientation if no orientation tag
+	}
+
+	orientationVal, err := orientation.Int(0)
+	if err != nil {
+		return 1
+	}
+
+	return orientationVal
+}
+
+// applyOrientation applies EXIF orientation transformations to an image
+func applyOrientation(img image.Image, orientation int) image.Image {
+	if orientation == 1 {
+		return img // no transformation needed
+	}
+
+	bounds := img.Bounds()
+	var dst *image.RGBA
+
+	switch orientation {
+	case 2: // flip horizontal
+		dst = image.NewRGBA(bounds)
+		for y := bounds.Min.Y; y < bounds.Max.Y; y++ {
+			for x := bounds.Min.X; x < bounds.Max.X; x++ {
+				dst.Set(bounds.Max.X-1-x+bounds.Min.X, y, img.At(x, y))
+			}
+		}
+	case 3: // rotate 180
+		dst = image.NewRGBA(bounds)
+		for y := bounds.Min.Y; y < bounds.Max.Y; y++ {
+			for x := bounds.Min.X; x < bounds.Max.X; x++ {
+				dst.Set(bounds.Max.X-1-x+bounds.Min.X, bounds.Max.Y-1-y+bounds.Min.Y, img.At(x, y))
+			}
+		}
+	case 4: // flip vertical
+		dst = image.NewRGBA(bounds)
+		for y := bounds.Min.Y; y < bounds.Max.Y; y++ {
+			for x := bounds.Min.X; x < bounds.Max.X; x++ {
+				dst.Set(x, bounds.Max.Y-1-y+bounds.Min.Y, img.At(x, y))
+			}
+		}
+	case 5: // transpose (flip horizontal and rotate 270 CW)
+		dst = image.NewRGBA(image.Rect(0, 0, bounds.Dy(), bounds.Dx()))
+		for y := bounds.Min.Y; y < bounds.Max.Y; y++ {
+			for x := bounds.Min.X; x < bounds.Max.X; x++ {
+				dst.Set(y-bounds.Min.Y, x-bounds.Min.X, img.At(x, y))
+			}
+		}
+	case 6: // rotate 90 CW
+		dst = image.NewRGBA(image.Rect(0, 0, bounds.Dy(), bounds.Dx()))
+		for y := bounds.Min.Y; y < bounds.Max.Y; y++ {
+			for x := bounds.Min.X; x < bounds.Max.X; x++ {
+				dst.Set(bounds.Max.Y-1-y+bounds.Min.Y, x-bounds.Min.X, img.At(x, y))
+			}
+		}
+	case 7: // transverse (flip horizontal and rotate 90 CW)
+		dst = image.NewRGBA(image.Rect(0, 0, bounds.Dy(), bounds.Dx()))
+		for y := bounds.Min.Y; y < bounds.Max.Y; y++ {
+			for x := bounds.Min.X; x < bounds.Max.X; x++ {
+				dst.Set(bounds.Max.Y-1-y+bounds.Min.Y, bounds.Max.X-1-x+bounds.Min.X, img.At(x, y))
+			}
+		}
+	case 8: // rotate 270 CW
+		dst = image.NewRGBA(image.Rect(0, 0, bounds.Dy(), bounds.Dx()))
+		for y := bounds.Min.Y; y < bounds.Max.Y; y++ {
+			for x := bounds.Min.X; x < bounds.Max.X; x++ {
+				dst.Set(y-bounds.Min.Y, bounds.Max.X-1-x+bounds.Min.X, img.At(x, y))
+			}
+		}
+	default:
+		return img
+	}
+
+	return dst
+}
+
 // shrinkImage reduces the size of an image by the given factor and returns the new image and format.
 func shrinkImage(reader io.Reader, factor int) (image.Image, string, error) {
-	img, format, err := image.Decode(reader)
+	// Read all data first to allow multiple reads
+	data, err := io.ReadAll(reader)
 	if err != nil {
 		return nil, "", err
 	}
+
+	// Try to decode EXIF orientation
+	orientation := getExifOrientation(bytes.NewReader(data))
+
+	// Decode the image
+	img, format, err := image.Decode(bytes.NewReader(data))
+	if err != nil {
+		return nil, "", err
+	}
+
+	// Apply EXIF orientation transformations
+	img = applyOrientation(img, orientation)
+
 	bounds := img.Bounds()
 	newW := bounds.Dx() / factor
 	newH := bounds.Dy() / factor
@@ -383,10 +486,17 @@ func galleryHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// build full urls for images
-	var imageURLs []string
+	// build both thumbnail and full urls for images
+	type ImagePair struct {
+		Thumbnail string
+		Full      string
+	}
+	var imagePairs []ImagePair
 	for _, img := range gallery.Images {
-		imageURLs = append(imageURLs, fmt.Sprintf("%s%s", config.ServePath, img))
+		imagePairs = append(imagePairs, ImagePair{
+			Thumbnail: fmt.Sprintf("/t/%s", img),
+			Full:      fmt.Sprintf("%s%s", config.ServePath, img),
+		})
 	}
 
 	// serve gallery template
@@ -395,7 +505,7 @@ func galleryHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Error loading template", http.StatusInternalServerError)
 		return
 	}
-	tmpl.Execute(w, imageURLs)
+	tmpl.Execute(w, imagePairs)
 }
 func uploadHandler(w http.ResponseWriter, r *http.Request) {
 	err := r.ParseMultipartForm(10 << 20) // 10 MB max in-memory size
