@@ -233,30 +233,43 @@ func serveThumbnailImageHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	imagePath := filepath.Join(config.UploadPath, imageName)
-	imageFile, err := os.Open(imagePath)
+	imageData, err := os.ReadFile(imagePath)
 	if err != nil {
 		notfoundHandler(w)
 		return
 	}
-	defer imageFile.Close()
 
-	dst, format, err := shrinkImage(imageFile, 4)
+	// Get the original orientation before shrinking
+	orientation := getImageOrientation(imageData)
+
+	// Shrink the image (this just decodes and shrinks - doesn't apply orientation)
+	dst, format, err := shrinkImage(bytes.NewReader(imageData), 4)
 	if err != nil {
 		http.Error(w, "Failed to shrink image", http.StatusInternalServerError)
 		return
 	}
 
+	// Encode the thumbnail
+	var buf bytes.Buffer
 	if format == "png" {
-		w.Header().Set("Content-Type", "image/png")
-		err = png.Encode(w, dst)
+		err = png.Encode(&buf, dst)
 	} else {
-		w.Header().Set("Content-Type", "image/jpeg")
-		err = jpeg.Encode(w, dst, &jpeg.Options{Quality: 85})
+		err = jpeg.Encode(&buf, dst, &jpeg.Options{Quality: 85})
 	}
 	if err != nil {
 		http.Error(w, "Failed to encode image", http.StatusInternalServerError)
 		return
 	}
+
+	// Add the same orientation tag as the original so browsers display it correctly
+	thumbnailData, _ := addOrientationTag(buf.Bytes(), orientation)
+
+	if format == "png" {
+		w.Header().Set("Content-Type", "image/png")
+	} else {
+		w.Header().Set("Content-Type", "image/jpeg")
+	}
+	w.Write(thumbnailData)
 }
 
 // shrinkImage reduces the size of an image by the given factor and returns the new image and format.
@@ -336,7 +349,7 @@ func writeFileAndReturnURL(w http.ResponseWriter, r *http.Request, file io.Reade
 		genfilename := randfilename(6, ext)
 		filepath := filepath.Join(config.UploadPath, genfilename)
 
-		if err := createAndCopyFile(filepath, fileReader); err != nil {
+		if err := processAndSaveImage(filepath, fileReader, ext); err != nil {
 			http.Error(w, "Error processing file", http.StatusInternalServerError)
 			return err
 		}
@@ -360,6 +373,22 @@ func createAndCopyFile(filepath string, src io.Reader) error {
 	}
 
 	return nil
+}
+
+func processAndSaveImage(filepath string, src io.Reader, ext string) error {
+	// For GIF files, just save as-is (animated GIFs shouldn't be re-encoded)
+	if ext == ".gif" {
+		return createAndCopyFile(filepath, src)
+	}
+
+	// Strip EXIF and metadata:
+	data, err := stripExifButKeepOrientationFromReader(src)
+	if err != nil {
+		return fmt.Errorf("error processing image: %w", err)
+	}
+
+	// Write the processed image
+	return createAndCopyFile(filepath, bytes.NewReader(data))
 }
 
 func constructFileURL(r *http.Request, filename string) string {
