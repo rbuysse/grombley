@@ -334,16 +334,19 @@ func writeFileAndReturnURL(w http.ResponseWriter, r *http.Request, file io.Reade
 		}
 
 		genfilename := randfilename(6, ext)
-		filepath := filepath.Join(config.UploadPath, genfilename)
+		filePath := filepath.Join(config.UploadPath, genfilename)
 
-		if err := createAndCopyFile(filepath, fileReader); err != nil {
+		actualFilepath, err := processAndSaveImage(filePath, fileReader, ext)
+		if err != nil {
 			http.Error(w, "Error processing file", http.StatusInternalServerError)
 			return err
 		}
 
-		hashes[hash] = genfilename
+		// Extract the actual filename from the path (might have changed extension)
+		actualFilename := filepath.Base(actualFilepath)
+		hashes[hash] = actualFilename
 
-		fileURL := constructFileURL(r, genfilename)
+		fileURL := constructFileURL(r, actualFilename)
 		return respondWithFileURL(w, r, fileURL)
 	}
 }
@@ -360,6 +363,55 @@ func createAndCopyFile(filepath string, src io.Reader) error {
 	}
 
 	return nil
+}
+
+func processAndSaveImage(filepath string, src io.Reader, ext string) (string, error) {
+	// For GIF files, just save as-is (animated GIFs shouldn't be re-encoded)
+	if ext == ".gif" {
+		return filepath, createAndCopyFile(filepath, src)
+	}
+
+	// Convert PNG to JPEG to ensure proper EXIF stripping for all uploads
+	// Use high quality (95) to minimize quality loss
+	if ext == ".png" {
+		data, err := io.ReadAll(src)
+		if err != nil {
+			return filepath, fmt.Errorf("error reading PNG: %w", err)
+		}
+
+		img, err := png.Decode(bytes.NewReader(data))
+		if err != nil {
+			return filepath, fmt.Errorf("error decoding PNG: %w", err)
+		}
+
+		// Convert to JPEG with high quality (95 out of 100)
+		var jpegBuf bytes.Buffer
+		err = jpeg.Encode(&jpegBuf, img, &jpeg.Options{Quality: 95})
+		if err != nil {
+			return filepath, fmt.Errorf("error encoding to JPEG: %w", err)
+		}
+
+		// Update the filepath extension to .jpg
+		filepath = strings.TrimSuffix(filepath, ".png") + ".jpg"
+
+		// Now process the JPEG data to strip EXIF
+		data, err = stripExifButKeepOrientation(jpegBuf.Bytes())
+		if err != nil {
+			return filepath, fmt.Errorf("error stripping EXIF from converted JPEG: %w", err)
+		}
+
+		return filepath, createAndCopyFile(filepath, bytes.NewReader(data))
+	}
+
+	// For JPEG files, strip EXIF and metadata:
+	// - Strip all EXIF except orientation tag (needed for proper display)
+	data, err := stripExifButKeepOrientationFromReader(src)
+	if err != nil {
+		return filepath, fmt.Errorf("error processing image: %w", err)
+	}
+
+	// Write the processed image
+	return filepath, createAndCopyFile(filepath, bytes.NewReader(data))
 }
 
 func constructFileURL(r *http.Request, filename string) string {
