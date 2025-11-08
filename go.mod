@@ -1,6 +1,6 @@
 module github.com/rbuysse/image-uploader
 
-go 1.22.0
+go 1.23.0
 
 require (
 	github.com/BurntSushi/toml v1.3.2
@@ -17,6 +17,6 @@ require (
 	github.com/go-errors/errors v1.4.2 // indirect
 	github.com/go-xmlfmt/xmlfmt v0.0.0-20191208150333-d5b6f63a941b // indirect
 	github.com/golang/geo v0.0.0-20210211234256-740aa86cb551 // indirect
-	golang.org/x/net v0.0.0-20221002022538-bcab6841153b // indirect
+	golang.org/x/net v0.38.0 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 )
