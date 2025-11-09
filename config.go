@@ -150,17 +150,18 @@ func loadConfig(configFile string) Config {
 
 // ParseStripExifFlags parses command-line flags for the strip-exif subcommand
 func ParseStripExifFlags() (uploadPath string, dryRun bool, backup bool, debug bool) {
-	flag.StringVar(&uploadPath, "u", "./uploads/", "Path to uploaded images directory")
-	flag.StringVar(&uploadPath, "upload-path", "./uploads/", "Path to uploaded images directory")
-	flag.BoolVar(&dryRun, "dry-run", false, "Preview what would be changed without modifying files")
-	flag.BoolVar(&backup, "backup", false, "Create .bak files before modifying images")
-	flag.BoolVar(&debug, "debug", false, "Enable debug logging")
+	fs := flag.NewFlagSet("strip-exif", flag.ExitOnError)
+	fs.StringVar(&uploadPath, "u", "./uploads/", "Path to uploaded images directory")
+	fs.StringVar(&uploadPath, "upload-path", "./uploads/", "Path to uploaded images directory")
+	fs.BoolVar(&dryRun, "dry-run", false, "Preview what would be changed without modifying files")
+	fs.BoolVar(&backup, "backup", false, "Create .bak files before modifying images")
+	fs.BoolVar(&debug, "debug", false, "Enable debug logging")
 
-	flag.Usage = func() {
+	fs.Usage = func() {
 		fmt.Println(usage)
 	}
 
-	flag.Parse()
+	fs.Parse(os.Args[2:])
 
 	return uploadPath, dryRun, backup, debug
 }
