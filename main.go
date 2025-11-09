@@ -41,7 +41,7 @@ type MimeTypeHandler struct {
 }
 
 var config Config
-var hashes map[string]string
+var hashes map[string]HashEntry
 var mimeTypeHandler MimeTypeHandler
 
 //go:embed templates
@@ -78,7 +78,7 @@ func main() {
 
 	var err error
 
-	hashesChan := make(chan map[string]string)
+	hashesChan := make(chan map[string]HashEntry)
 	errChan := make(chan error)
 
 	hashes, err = buildHashDict(config.UploadPath)
@@ -132,8 +132,8 @@ func main() {
 	}
 
 	if config.Debug {
-		for hash, filename := range hashes {
-			fmt.Printf("MD5 Hash: %s, Filename: %s\n", hash, filename)
+		for hash, entry := range hashes {
+			fmt.Printf("MD5 Hash: %s, Filename: %s, ModTime: %s\n", hash, entry.Filename, entry.ModTime)
 		}
 	}
 
@@ -332,8 +332,8 @@ func processUploadedFile(fileHeader *multipart.FileHeader) (string, error) {
 	}
 
 	// check if file already exists
-	if value, exists := imageHashExists(hash); exists {
-		return value, nil
+	if entry, exists := imageHashExists(hash); exists {
+		return entry.Filename, nil
 	}
 
 	// reset file reader after hash computation
@@ -360,7 +360,16 @@ func processUploadedFile(fileHeader *multipart.FileHeader) (string, error) {
 		return "", err
 	}
 
-	hashes[hash] = genfilename
+	// Get file info to extract modification time
+	fileInfo, err := os.Stat(filepath)
+	if err != nil {
+		return "", err
+	}
+
+	hashes[hash] = HashEntry{
+		Filename: genfilename,
+		ModTime:  fileInfo.ModTime(),
+	}
 	return genfilename, nil
 }
 
@@ -516,13 +525,13 @@ func writeFileAndReturnURL(w http.ResponseWriter, r *http.Request, file io.Reade
 	if err != nil {
 		return err
 	}
-	value, exists := imageHashExists(hash)
+	entry, exists := imageHashExists(hash)
 
 	if exists {
 		if config.Debug {
-			fmt.Printf("Hash %s exists: %s\n", hash, value)
+			fmt.Printf("Hash %s exists: %s\n", hash, entry.Filename)
 		}
-		fileURL := constructFileURL(r, value)
+		fileURL := constructFileURL(r, entry.Filename)
 		return respondWithFileURL(w, r, fileURL)
 	} else {
 		if config.Debug {
@@ -542,7 +551,17 @@ func writeFileAndReturnURL(w http.ResponseWriter, r *http.Request, file io.Reade
 			return err
 		}
 
-		hashes[hash] = genfilename
+		// Get file info to extract modification time
+		fileInfo, err := os.Stat(filepath)
+		if err != nil {
+			http.Error(w, "Error getting file info", http.StatusInternalServerError)
+			return err
+		}
+
+		hashes[hash] = HashEntry{
+			Filename: genfilename,
+			ModTime:  fileInfo.ModTime(),
+		}
 
 		fileURL := constructFileURL(r, genfilename)
 		return respondWithFileURL(w, r, fileURL)
