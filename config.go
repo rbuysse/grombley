@@ -12,15 +12,17 @@ import (
 const usage = `Usage:
   -b, --bind           address:port to run the server on (default: 0.0.0.0:3000)
   -c, --config         Path to a configuration file (default: config.toml)
+  -g, --gallery-path   Path to store gallery metadata (default: ./galleries/)
   -s, --serve-path     Path to serve images from (default: /i/)
   -u, --upload-path    Path to store uploaded images (default: ./uploads/)`
 
 // Default config
 func defaultConfig() Config {
 	return Config{
-		Bind:       "0.0.0.0:3000",
-		ServePath:  "/i/",
-		UploadPath: "./uploads/",
+		Bind:        "0.0.0.0:3000",
+		GalleryPath: "./galleries/",
+		ServePath:   "/i/",
+		UploadPath:  "./uploads/",
 	}
 }
 
@@ -29,6 +31,7 @@ func GenerateConfig() Config {
 	var configFile string
 	var configFileSet bool
 	var debugOpt bool
+	var galleryPathOpt string
 	var servePathOpt string
 	var uploadPathOpt string
 
@@ -37,6 +40,8 @@ func GenerateConfig() Config {
 	flag.StringVar(&configFile, "c", "", "Path to the configuration file")
 	flag.StringVar(&configFile, "config", "", "Path to the configuration file")
 	flag.BoolVar(&debugOpt, "debug", false, "enable debug mode")
+	flag.StringVar(&galleryPathOpt, "g", "", "Path to store gallery metadata")
+	flag.StringVar(&galleryPathOpt, "gallery-path", "", "Path to store gallery metadata")
 	flag.StringVar(&servePathOpt, "s", "", "Path to serve images from")
 	flag.StringVar(&servePathOpt, "serve-path", "", "Path to serve images from")
 	flag.StringVar(&uploadPathOpt, "u", "", "Path to store uploaded images")
@@ -77,9 +82,10 @@ func GenerateConfig() Config {
 
 	// Override the config values with the command-line flags
 	options := map[*string]*string{
-		&bindOpt:       &config.Bind,
-		&servePathOpt:  &config.ServePath,
-		&uploadPathOpt: &config.UploadPath,
+		&bindOpt:        &config.Bind,
+		&galleryPathOpt: &config.GalleryPath,
+		&servePathOpt:   &config.ServePath,
+		&uploadPathOpt:  &config.UploadPath,
 	}
 
 	for option, configField := range options {
@@ -102,6 +108,7 @@ func loadConfig(configFile string) Config {
 	var tempConfig struct {
 		Bind       string `toml:"bind"`
 		Debug      bool   `toml:"debug"`
+		GalleryPath string `toml:"gallery_path"`
 		ServePath  string `toml:"serve_path"`
 		UploadPath string `toml:"upload_path"`
 	}
@@ -122,6 +129,9 @@ func loadConfig(configFile string) Config {
 	}
 	if tempConfig.Debug {
 		config.Debug = true
+	}
+	if tempConfig.GalleryPath != "" {
+		config.GalleryPath = tempConfig.GalleryPath
 	}
 
 	return config
