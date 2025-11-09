@@ -54,6 +54,13 @@ var supportedMimeTypes = map[string]string{
 }
 
 func main() {
+	// Check for subcommands
+	if len(os.Args) > 1 && os.Args[1] == "strip-exif" {
+		// Remove the subcommand from args so flag parsing works
+		os.Args = append(os.Args[:1], os.Args[2:]...)
+		runStripExifCommand()
+		return
+	}
 
 	config = GenerateConfig()
 	mimeTypeHandler = *newMimeTypeHandler()

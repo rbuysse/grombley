@@ -10,11 +10,22 @@ import (
 )
 
 const usage = `Usage:
+  grombley [flags]                    Start the image upload server
+  grombley strip-exif [flags]         Strip EXIF from existing uploads
+
+Server flags:
   -b, --bind           address:port to run the server on (default: 0.0.0.0:3000)
   -c, --config         Path to a configuration file (default: config.toml)
   -g, --gallery-path   Path to store gallery metadata (default: ./galleries/)
   -s, --serve-path     Path to serve images from (default: /i/)
-  -u, --upload-path    Path to store uploaded images (default: ./uploads/)`
+  -u, --upload-path    Path to store uploaded images (default: ./uploads/)
+      --debug          Enable debug logging
+
+Strip-exif flags:
+  -u, --upload-path    Path to uploaded images directory (default: ./uploads/)
+      --dry-run        Preview what would be changed without modifying files
+      --backup         Create .bak files before modifying images
+      --debug          Enable debug logging`
 
 // Default config
 func defaultConfig() Config {
@@ -135,4 +146,21 @@ func loadConfig(configFile string) Config {
 	}
 
 	return config
+}
+
+// ParseStripExifFlags parses command-line flags for the strip-exif subcommand
+func ParseStripExifFlags() (uploadPath string, dryRun bool, backup bool, debug bool) {
+	flag.StringVar(&uploadPath, "u", "./uploads/", "Path to uploaded images directory")
+	flag.StringVar(&uploadPath, "upload-path", "./uploads/", "Path to uploaded images directory")
+	flag.BoolVar(&dryRun, "dry-run", false, "Preview what would be changed without modifying files")
+	flag.BoolVar(&backup, "backup", false, "Create .bak files before modifying images")
+	flag.BoolVar(&debug, "debug", false, "Enable debug logging")
+
+	flag.Usage = func() {
+		fmt.Println(usage)
+	}
+
+	flag.Parse()
+
+	return uploadPath, dryRun, backup, debug
 }
