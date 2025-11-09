@@ -417,7 +417,10 @@ func galleryHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Error loading template", http.StatusInternalServerError)
 		return
 	}
-	tmpl.Execute(w, imageURLs)
+	if err := tmpl.Execute(w, imageURLs); err != nil {
+		http.Error(w, "Error rendering template", http.StatusInternalServerError)
+		return
+	}
 }
 
 func uploadHandler(w http.ResponseWriter, r *http.Request) {
@@ -463,6 +466,9 @@ func uploadHandler(w http.ResponseWriter, r *http.Request) {
 	for _, fileHeader := range files {
 		filename, err := processUploadedFile(fileHeader)
 		if err != nil {
+			if config.Debug {
+				fmt.Printf("Skipping file %s: %v\n", fileHeader.Filename, err)
+			}
 			continue // skip files that fail to process
 		}
 		imageFilenames = append(imageFilenames, filename)
