@@ -60,19 +60,20 @@ func GenerateConfig() Config {
 	}
 
 	// Check if the config file exists
+	var config Config
 	if _, err := os.Stat(configFile); os.IsNotExist(err) {
 		if configFileSet {
 			log.Fatalf("Config file %v specified but not found.\n", configFile)
 		}
 		fmt.Printf("Config file %v not found. Using defaults.\n", configFile)
-		return defaultConfig()
+		config = defaultConfig()
 	} else if err != nil {
 		log.Fatalf("Error accessing config file %v: %v\n", configFile, err)
+	} else {
+		// Load the config file
+		fmt.Printf("Loading config from %v\n", configFile)
+		config = loadConfig(configFile)
 	}
-
-	// Load the config file
-	fmt.Printf("Loading config from %v\n", configFile)
-	config := loadConfig(configFile)
 
 	// Override the config values with the command-line flags
 	options := map[*string]*string{
@@ -100,6 +101,7 @@ func loadConfig(configFile string) Config {
 	// Temporary struct to decode TOML file
 	var tempConfig struct {
 		Bind       string `toml:"bind"`
+		Debug      bool   `toml:"debug"`
 		ServePath  string `toml:"serve_path"`
 		UploadPath string `toml:"upload_path"`
 	}
@@ -117,6 +119,9 @@ func loadConfig(configFile string) Config {
 	}
 	if tempConfig.UploadPath != "" {
 		config.UploadPath = tempConfig.UploadPath
+	}
+	if tempConfig.Debug {
+		config.Debug = true
 	}
 
 	return config
