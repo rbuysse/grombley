@@ -5,9 +5,12 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
+	"strings"
 	"text/template"
 )
 
@@ -86,14 +89,30 @@ func uploadHandler(w http.ResponseWriter, r *http.Request) {
 
 func urlUploadHandler(w http.ResponseWriter, r *http.Request) {
 	var requestBody map[string]string
-	json.NewDecoder(r.Body).Decode(&requestBody)
+	if err := json.NewDecoder(r.Body).Decode(&requestBody); err != nil {
+		http.Error(w, "Invalid JSON request body", http.StatusBadRequest)
+		return
+	}
 	urlString := requestBody["url"]
+
+	// Validate the URL to prevent SSRF attacks
+	if err := validateURL(urlString); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
 
 	resp, err := http.Get(urlString)
 	if err != nil {
+		http.Error(w, "Failed to fetch URL", http.StatusBadRequest)
 		return
 	}
 	defer resp.Body.Close()
+
+	// Check response status code
+	if resp.StatusCode != http.StatusOK {
+		http.Error(w, "Failed to fetch URL: non-200 status code", http.StatusBadRequest)
+		return
+	}
 
 	writeFileAndReturnURL(w, r, resp.Body)
 }
@@ -125,4 +144,106 @@ func respondWithFileURL(w http.ResponseWriter, r *http.Request, url string) erro
 		}
 	}
 	return nil
+}
+
+// validateURL checks if the URL is safe to fetch (prevents SSRF attacks)
+func validateURL(urlString string) error {
+	if urlString == "" {
+		return fmt.Errorf("URL is required")
+	}
+
+	parsedURL, err := url.Parse(urlString)
+	if err != nil {
+		return fmt.Errorf("invalid URL")
+	}
+
+	// Only allow HTTP and HTTPS schemes
+	if parsedURL.Scheme != "http" && parsedURL.Scheme != "https" {
+		return fmt.Errorf("only HTTP and HTTPS URLs are allowed")
+	}
+
+	// Extract the hostname
+	hostname := parsedURL.Hostname()
+	if hostname == "" {
+		return fmt.Errorf("invalid URL: missing hostname")
+	}
+
+	// Block localhost and common local hostnames
+	lowerHost := strings.ToLower(hostname)
+	blockedHosts := []string{
+		"localhost",
+		"localhost.localdomain",
+		"127.0.0.1",
+		"::1",
+		"0.0.0.0",
+		"0",
+		"[::1]",
+	}
+	for _, blocked := range blockedHosts {
+		if lowerHost == blocked {
+			return fmt.Errorf("local URLs are not allowed")
+		}
+	}
+
+	// Resolve the hostname and check for private/internal IPs
+	ips, err := net.LookupIP(hostname)
+	if err != nil {
+		return fmt.Errorf("could not resolve hostname")
+	}
+
+	for _, ip := range ips {
+		if isPrivateIP(ip) {
+			return fmt.Errorf("private IP addresses are not allowed")
+		}
+	}
+
+	return nil
+}
+
+// privateNetworks contains pre-parsed CIDR ranges for private IP checking
+var privateNetworks []*net.IPNet
+
+func init() {
+	privateRanges := []string{
+		"10.0.0.0/8",
+		"172.16.0.0/12",
+		"192.168.0.0/16",
+	}
+
+	for _, cidr := range privateRanges {
+		_, network, err := net.ParseCIDR(cidr)
+		if err == nil {
+			privateNetworks = append(privateNetworks, network)
+		}
+	}
+}
+
+// isPrivateIP checks if an IP address is private/internal
+func isPrivateIP(ip net.IP) bool {
+	// Check for loopback addresses
+	if ip.IsLoopback() {
+		return true
+	}
+
+	// Check for link-local addresses
+	if ip.IsLinkLocalUnicast() || ip.IsLinkLocalMulticast() {
+		return true
+	}
+
+	// Check for private IPv4 ranges (pre-parsed)
+	for _, network := range privateNetworks {
+		if network.Contains(ip) {
+			return true
+		}
+	}
+
+	// Check for IPv6 private ranges
+	if ip.To4() == nil {
+		// IPv6 unique local addresses (fc00::/7)
+		if len(ip) == 16 && (ip[0]&0xfe) == 0xfc {
+			return true
+		}
+	}
+
+	return false
 }
