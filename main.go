@@ -92,6 +92,10 @@ func main() {
 		io.Copy(w, file)
 	})
 
+	if config.Debug {
+		fmt.Println("Debug mode is enabled")
+	}
+
 	fmt.Printf("Server is running on http://%s\n"+
 		"Serving images at %s\n"+
 		"Upload path is %s\n",
