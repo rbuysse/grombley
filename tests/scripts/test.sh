@@ -151,6 +151,38 @@ else
   ERRORS=$((ERRORS+1))
 fi
 
+# --== Test multi-upload gallery ==--
+printf "Testing multi-upload gallery: "
+
+# upload multiple files and get gallery url
+GALLERY_RESPONSE=$(curl -s \
+  -H "Accept: application/json" \
+  -F 'file=@/tmp/test.jpg' \
+  -F 'file=@/tmp/slimer.png' \
+  grombley:3000/upload)
+
+GALLERY_URL=$(echo "$GALLERY_RESPONSE" | grep -oP '(?<="url":")[^"]+')
+
+# check if gallery url contains /g/
+if echo "$GALLERY_URL" | grep -q "/g/"; then
+  # fetch gallery page and check for images
+  GALLERY_PAGE=$(curl -s "$GALLERY_URL")
+
+  # check if gallery contains img tags
+  if echo "$GALLERY_PAGE" | grep -q "<img src="; then
+    printf "✅ - Multi-upload gallery works\n\n"
+  else
+    printf "❌ - Gallery page missing images\n\n"
+    echo "GALLERY_PAGE: $GALLERY_PAGE"
+    ERRORS=$((ERRORS+1))
+  fi
+else
+  printf "❌ - Multi-upload failed to create gallery\n\n"
+  echo "GALLERY_URL: $GALLERY_URL"
+  echo "RESPONSE: $GALLERY_RESPONSE"
+  ERRORS=$((ERRORS+1))
+fi
+
 if [ $ERRORS -eq 0 ]; then
   printf "All tests passed: ✅ - 😊\n"
 else

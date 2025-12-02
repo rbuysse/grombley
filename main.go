@@ -11,6 +11,7 @@ import (
 	"io"
 	"log"
 	"math/rand"
+	"mime/multipart"
 	"net/http"
 	"os"
 	"path"
@@ -20,11 +21,18 @@ import (
 	"time"
 )
 
+type Gallery struct {
+	Created time.Time `json:"created"`
+	ID      string    `json:"id"`
+	Images  []string  `json:"images"`
+}
+
 type Config struct {
-	Bind       string `toml:"bind"`
-	Debug      bool   `toml:"debug"`
-	ServePath  string `toml:"serve_path"`
-	UploadPath string `toml:"upload_path"`
+	Bind        string `toml:"bind"`
+	Debug       bool   `toml:"debug"`
+	GalleryPath string `toml:"gallery_path"`
+	ServePath   string `toml:"serve_path"`
+	UploadPath  string `toml:"upload_path"`
 }
 
 type MimeTypeHandler struct {
@@ -33,7 +41,7 @@ type MimeTypeHandler struct {
 }
 
 var config Config
-var hashes map[string]string
+var hashes map[string]HashEntry
 var mimeTypeHandler MimeTypeHandler
 
 //go:embed templates
@@ -46,6 +54,13 @@ var supportedMimeTypes = map[string]string{
 }
 
 func main() {
+	// Check for subcommands
+	if len(os.Args) > 1 && os.Args[1] == "strip-exif" {
+		// Remove the subcommand from args so flag parsing works
+		os.Args = append(os.Args[:1], os.Args[2:]...)
+		runStripExifCommand()
+		return
+	}
 
 	config = GenerateConfig()
 	mimeTypeHandler = *newMimeTypeHandler()
@@ -55,9 +70,15 @@ func main() {
 		fmt.Printf("Creating upload directory at %s\n", config.UploadPath)
 		os.MkdirAll(config.UploadPath, os.ModePerm)
 	}
+
+	// Create galleries directory if it doesn't exist
+	if _, err := os.Stat(config.GalleryPath); os.IsNotExist(err) {
+		os.MkdirAll(config.GalleryPath, os.ModePerm)
+	}
+
 	var err error
 
-	hashesChan := make(chan map[string]string)
+	hashesChan := make(chan map[string]HashEntry)
 	errChan := make(chan error)
 
 	hashes, err = buildHashDict(config.UploadPath)
@@ -76,6 +97,7 @@ func main() {
 	http.HandleFunc("/t/", serveThumbnailImageHandler)
 	http.HandleFunc("/upload", uploadHandler)
 	http.HandleFunc("/url", urlUploadHandler)
+	http.HandleFunc("/g/", galleryHandler)
 	http.HandleFunc(config.ServePath, serveImageHandler)
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		filePath := path.Join("templates", r.URL.Path)
@@ -110,8 +132,8 @@ func main() {
 	}
 
 	if config.Debug {
-		for hash, filename := range hashes {
-			fmt.Printf("MD5 Hash: %s, Filename: %s\n", hash, filename)
+		for hash, entry := range hashes {
+			fmt.Printf("MD5 Hash: %s, Filename: %s, ModTime: %s\n", hash, entry.Filename, entry.ModTime)
 		}
 	}
 
@@ -296,20 +318,191 @@ func shrinkImage(reader io.Reader, factor int) (image.Image, string, error) {
 	return dst, format, nil
 }
 
-func uploadHandler(w http.ResponseWriter, r *http.Request) {
-	// Parse the multipart form data with a specified max memory limit (in bytes)
-	r.ParseMultipartForm(10 << 20) // 10 MB max in-memory size
-
-	// Get the uploaded file
-	file, _, err := r.FormFile("file") // "file" should match the name attribute in your HTML form
+// processUploadedFile handles a single file upload and returns the filename
+func processUploadedFile(fileHeader *multipart.FileHeader) (string, error) {
+	file, err := fileHeader.Open()
 	if err != nil {
-		fmt.Println("Error retrieving the file:", err)
-		http.Error(w, "Error retrieving the file", http.StatusBadRequest)
-		return
+		return "", err
 	}
 	defer file.Close()
 
-	writeFileAndReturnURL(w, r, file)
+	hash, err := computeFileHash(file)
+	if err != nil {
+		return "", err
+	}
+
+	// check if file already exists
+	if entry, exists := imageHashExists(hash); exists {
+		return entry.Filename, nil
+	}
+
+	// reset file reader after hash computation
+	if seeker, ok := file.(io.Seeker); ok {
+		seeker.Seek(0, 0)
+	} else {
+		file.Close()
+		file, err = fileHeader.Open()
+		if err != nil {
+			return "", err
+		}
+		defer file.Close()
+	}
+
+	ext, fileReader, err := mimeTypeHandler.detectContentType(file)
+	if err != nil {
+		return "", err
+	}
+
+	genfilename := randfilename(6, ext)
+	filepath := filepath.Join(config.UploadPath, genfilename)
+
+	if err := processAndSaveImage(filepath, fileReader, ext); err != nil {
+		return "", err
+	}
+
+	// Get file info to extract modification time
+	fileInfo, err := os.Stat(filepath)
+	if err != nil {
+		return "", err
+	}
+
+	hashes[hash] = HashEntry{
+		Filename: genfilename,
+		ModTime:  fileInfo.ModTime(),
+	}
+	return genfilename, nil
+}
+
+// createGallery saves gallery data and returns the gallery URL
+func createGallery(r *http.Request, imageFilenames []string) (string, error) {
+	galleryID := randfilename(6, "")
+	gallery := Gallery{
+		ID:      galleryID,
+		Images:  imageFilenames,
+		Created: time.Now(),
+	}
+
+	galleryPath := filepath.Join(config.GalleryPath, galleryID+".json")
+	os.MkdirAll(config.GalleryPath, os.ModePerm)
+
+	galleryJSON, err := json.Marshal(gallery)
+	if err != nil {
+		return "", err
+	}
+
+	if err := os.WriteFile(galleryPath, galleryJSON, 0644); err != nil {
+		return "", err
+	}
+
+	scheme := "http://"
+	if r.TLS != nil {
+		scheme = "https://"
+	}
+	return fmt.Sprintf("%s%s/g/%s", scheme, r.Host, galleryID), nil
+}
+
+func galleryHandler(w http.ResponseWriter, r *http.Request) {
+	galleryID := strings.TrimPrefix(r.URL.Path, "/g/")
+	if galleryID == "" {
+		notfoundHandler(w)
+		return
+	}
+
+	galleryPath := filepath.Join(config.GalleryPath, galleryID+".json")
+	galleryData, err := os.ReadFile(galleryPath)
+	if err != nil {
+		notfoundHandler(w)
+		return
+	}
+
+	var gallery Gallery
+	if err := json.Unmarshal(galleryData, &gallery); err != nil {
+		notfoundHandler(w)
+		return
+	}
+
+	// build full urls for images
+	var imageURLs []string
+	for _, img := range gallery.Images {
+		imageURLs = append(imageURLs, fmt.Sprintf("%s%s", config.ServePath, img))
+	}
+
+	// serve gallery template
+	tmpl, err := template.ParseFS(templatesFolder, "templates/gallery.html")
+	if err != nil {
+		http.Error(w, "Error loading template", http.StatusInternalServerError)
+		return
+	}
+	if err := tmpl.Execute(w, imageURLs); err != nil {
+		http.Error(w, "Error rendering template", http.StatusInternalServerError)
+		return
+	}
+}
+
+func uploadHandler(w http.ResponseWriter, r *http.Request) {
+	err := r.ParseMultipartForm(10 << 20) // 10 MB max in-memory size
+	if err != nil {
+		http.Error(w, "Error parsing form", http.StatusBadRequest)
+		return
+	}
+
+	// get all uploaded files
+	var files []*multipart.FileHeader
+	if r.MultipartForm != nil && r.MultipartForm.File != nil {
+		files = r.MultipartForm.File["file"]
+	}
+
+	// fallback to single file method if no files from multipart
+	if len(files) == 0 {
+		file, _, err := r.FormFile("file")
+		if err != nil {
+			fmt.Println("Error retrieving the file:", err)
+			http.Error(w, "Error retrieving the file", http.StatusBadRequest)
+			return
+		}
+		defer file.Close()
+		writeFileAndReturnURL(w, r, file)
+		return
+	}
+
+	// single file - return direct URL
+	if len(files) == 1 {
+		file, err := files[0].Open()
+		if err != nil {
+			http.Error(w, "Error opening file", http.StatusBadRequest)
+			return
+		}
+		defer file.Close()
+		writeFileAndReturnURL(w, r, file)
+		return
+	}
+
+	// multiple files - process and create gallery
+	var imageFilenames []string
+	for _, fileHeader := range files {
+		filename, err := processUploadedFile(fileHeader)
+		if err != nil {
+			if config.Debug {
+				fmt.Printf("Skipping file %s: %v\n", fileHeader.Filename, err)
+			}
+			continue // skip files that fail to process
+		}
+		imageFilenames = append(imageFilenames, filename)
+	}
+
+	if len(imageFilenames) == 0 {
+		http.Error(w, "No valid images uploaded", http.StatusBadRequest)
+		return
+	}
+
+	// create and return gallery URL
+	galleryURL, err := createGallery(r, imageFilenames)
+	if err != nil {
+		http.Error(w, "Error creating gallery", http.StatusInternalServerError)
+		return
+	}
+
+	respondWithFileURL(w, r, galleryURL)
 }
 
 func urlUploadHandler(w http.ResponseWriter, r *http.Request) {
@@ -332,13 +525,13 @@ func writeFileAndReturnURL(w http.ResponseWriter, r *http.Request, file io.Reade
 	if err != nil {
 		return err
 	}
-	value, exists := imageHashExists(hash)
+	entry, exists := imageHashExists(hash)
 
 	if exists {
 		if config.Debug {
-			fmt.Printf("Hash %s exists: %s\n", hash, value)
+			fmt.Printf("Hash %s exists: %s\n", hash, entry.Filename)
 		}
-		fileURL := constructFileURL(r, value)
+		fileURL := constructFileURL(r, entry.Filename)
 		return respondWithFileURL(w, r, fileURL)
 	} else {
 		if config.Debug {
@@ -358,7 +551,17 @@ func writeFileAndReturnURL(w http.ResponseWriter, r *http.Request, file io.Reade
 			return err
 		}
 
-		hashes[hash] = genfilename
+		// Get file info to extract modification time
+		fileInfo, err := os.Stat(filepath)
+		if err != nil {
+			http.Error(w, "Error getting file info", http.StatusInternalServerError)
+			return err
+		}
+
+		hashes[hash] = HashEntry{
+			Filename: genfilename,
+			ModTime:  fileInfo.ModTime(),
+		}
 
 		fileURL := constructFileURL(r, genfilename)
 		return respondWithFileURL(w, r, fileURL)

@@ -6,10 +6,17 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"time"
 )
 
-func buildHashDict(imageDir string) (map[string]string, error) {
-	hashes := make(map[string]string)
+// HashEntry stores metadata about a hashed file
+type HashEntry struct {
+	Filename string
+	ModTime  time.Time
+}
+
+func buildHashDict(imageDir string) (map[string]HashEntry, error) {
+	hashes := make(map[string]HashEntry)
 	err := filepath.Walk(imageDir, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return err
@@ -28,7 +35,10 @@ func buildHashDict(imageDir string) (map[string]string, error) {
 			hashInBytes := hash.Sum(nil)[:16]
 			hashString := fmt.Sprintf("%x", hashInBytes)
 
-			hashes[hashString] = info.Name()
+			hashes[hashString] = HashEntry{
+				Filename: info.Name(),
+				ModTime:  info.ModTime(),
+			}
 		}
 		return nil
 	})
@@ -55,9 +65,9 @@ func computeFileHash(fileReader io.Reader) (string, error) {
 	return hashString, nil
 }
 
-func imageHashExists(hash string) (string, bool) {
-	if value, ok := hashes[hash]; ok {
-		return value, true
+func imageHashExists(hash string) (HashEntry, bool) {
+	if entry, ok := hashes[hash]; ok {
+		return entry, true
 	}
-	return "", false
+	return HashEntry{}, false
 }
