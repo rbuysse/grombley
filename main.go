@@ -10,6 +10,9 @@ import (
 	"path"
 )
 
+// version will be set at build time via -ldflags
+var version = "dev"
+
 type Config struct {
 	Bind       string `toml:"bind"`
 	Debug      bool   `toml:"debug"`
@@ -26,6 +29,7 @@ var templatesFolder embed.FS
 
 func main() {
 
+	fmt.Printf("commit: %s\n", version)
 	config = GenerateConfig()
 	mimeTypeHandler = *newMimeTypeHandler()
 
