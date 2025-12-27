@@ -39,7 +39,6 @@ func main() {
 	hashesChan := make(chan map[string]string)
 	errChan := make(chan error)
 
-	hashes, err = buildHashDict(config.UploadPath)
 	go func() {
 		hashes, err := buildHashDict(config.UploadPath)
 		if err != nil {
