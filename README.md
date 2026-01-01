@@ -19,3 +19,22 @@ Then,
   1. Run `just docker-run` 
   1. Open [http://localhost:3000](http://localhost:3000)
      to use grombley
+
+## Configuration Options
+
+You can configure the application using a TOML file (default: `config.toml`)
+or command-line flags. An example config file is provided at
+`config.toml.example`.
+
+### Available Options
+
+Command-line flags override values in the config file. If no config file is
+found, defaults are used.
+
+| Option         | TOML Key     | CLI Flag(s)                | Default Value      | Description                           |
+|----------------|--------------|----------------------------|--------------------|---------------------------------------|
+| Config file    | —            | `-c`, `--config`           | `config.toml`      | Path to the configuration file        |
+| Bind address   | `bind`       | `-b`, `--bind`             | `0.0.0.0:3000`     | Address and port to run the server on |
+| Debug mode     | `debug`      | `--debug`                  | `false`            | Enable debug mode                     |
+| Serve path     | `serve_path` | `-s`, `--serve-path`       | `/i/`              | Path to serve images from             |
+| Upload path    | `upload_path`| `-u`, `--upload-path`      | `./uploads/`       | Path to store uploaded images         |
