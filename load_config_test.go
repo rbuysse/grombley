@@ -3,8 +3,23 @@ package main
 import (
 	"flag"
 	"os"
+	"path/filepath"
 	"testing"
 )
+
+// Helper function to calculate expected absolute path from a relative path
+func expectedAbsPath(t *testing.T, relPath string) string {
+	t.Helper()
+	cwd, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("Error getting current working directory: %v", err)
+	}
+	absPath, err := filepath.Abs(filepath.Join(cwd, relPath))
+	if err != nil {
+		t.Fatalf("Error calculating expected path: %v", err)
+	}
+	return absPath
+}
 
 func TestConfig(t *testing.T) {
 	t.Run("defaults", func(t *testing.T) {
@@ -229,8 +244,10 @@ debug = false
 			t.Errorf("Expected serve_path from CLI flag to be /s/, but got %s", config.ServePath)
 		}
 
-		if config.UploadPath != "./custom/" {
-			t.Errorf("Expected upload_path from CLI flag to be ./custom/, but got %s", config.UploadPath)
+		// Upload path should be converted to absolute
+		expectedUploadPath := expectedAbsPath(t, "./custom/")
+		if config.UploadPath != expectedUploadPath {
+			t.Errorf("Expected upload_path to be %s, but got %s", expectedUploadPath, config.UploadPath)
 		}
 
 		if !config.Debug {
@@ -260,12 +277,78 @@ debug = false
 			t.Errorf("Expected serve_path from -s flag to be /media/, but got %s", config.ServePath)
 		}
 
-		if config.UploadPath != "./temp/" {
-			t.Errorf("Expected upload_path from -u flag to be ./temp/, but got %s", config.UploadPath)
+		// Upload path should be converted to absolute
+		expectedUploadPath := expectedAbsPath(t, "./temp/")
+		if config.UploadPath != expectedUploadPath {
+			t.Errorf("Expected upload_path to be %s, but got %s", expectedUploadPath, config.UploadPath)
 		}
 
 		if !config.Debug {
 			t.Errorf("Expected debug to be true, but got false")
+		}
+	})
+
+	t.Run("expand tilde in upload path", func(t *testing.T) {
+		homeDir, err := os.UserHomeDir()
+		if err != nil {
+			t.Fatalf("Error getting user home directory: %v", err)
+		}
+
+		tempFile, err := os.CreateTemp("", "config-*.toml")
+		if err != nil {
+			t.Fatalf("Error creating temporary file: %v", err)
+		}
+		defer os.Remove(tempFile.Name())
+
+		configContent := `
+bind = "localhost:3000"
+upload_path = "~/test/uploads"
+`
+		if _, err := tempFile.Write([]byte(configContent)); err != nil {
+			t.Fatalf("Error writing to temporary file: %v", err)
+		}
+		tempFile.Close()
+
+		// Reset flags for this test
+		flag.CommandLine = flag.NewFlagSet(os.Args[0], flag.ExitOnError)
+		os.Args = []string{"cmd", "-c", tempFile.Name()}
+
+		config := GenerateConfig()
+
+		expectedUploadPath := homeDir + "/test/uploads"
+		if config.UploadPath != expectedUploadPath {
+			t.Errorf("Expected upload_path to be %s, but got %s", expectedUploadPath, config.UploadPath)
+		}
+	})
+
+	t.Run("convert relative paths to absolute", func(t *testing.T) {
+		tempFile, err := os.CreateTemp("", "config-*.toml")
+		if err != nil {
+			t.Fatalf("Error creating temporary file: %v", err)
+		}
+		defer os.Remove(tempFile.Name())
+
+		configContent := `
+bind = "localhost:3000"
+upload_path = "../../grims"
+`
+		if _, err := tempFile.Write([]byte(configContent)); err != nil {
+			t.Fatalf("Error writing to temporary file: %v", err)
+		}
+		tempFile.Close()
+
+		// Reset flags for this test
+		flag.CommandLine = flag.NewFlagSet(os.Args[0], flag.ExitOnError)
+		os.Args = []string{"cmd", "-c", tempFile.Name()}
+
+		config := GenerateConfig()
+
+		// Calculate what the expected absolute path should be
+		// ../../grims from the current working directory
+		expectedUploadPath := expectedAbsPath(t, "../../grims")
+
+		if config.UploadPath != expectedUploadPath {
+			t.Errorf("Expected upload_path to be %s, but got %s", expectedUploadPath, config.UploadPath)
 		}
 	})
 }

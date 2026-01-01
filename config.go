@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"path/filepath"
+	"strings"
 
 	"github.com/BurntSushi/toml"
 )
@@ -91,6 +93,20 @@ func GenerateConfig() Config {
 	if debugOpt {
 		config.Debug = true
 	}
+
+	// Convert upload path to absolute path
+	if strings.HasPrefix(config.UploadPath, "~/") {
+		homeDir, err := os.UserHomeDir()
+		if err != nil {
+			log.Fatalf("Error getting user home directory: %v\n", err)
+		}
+		config.UploadPath = filepath.Join(homeDir, config.UploadPath[2:])
+	}
+	absPath, err := filepath.Abs(config.UploadPath)
+	if err != nil {
+		log.Fatalf("Error converting upload path to absolute: %v\n", err)
+	}
+	config.UploadPath = absPath
 
 	return config
 }
