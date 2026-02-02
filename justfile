@@ -1,7 +1,9 @@
 all: run
 
 build:
-  go build
+  #!/usr/bin/env sh
+  VERSION=$(git rev-parse --short HEAD 2>/dev/null || echo "dev")
+  go build -ldflags "-X main.version=${VERSION}"
 
 coverage:
   go test -coverprofile=coverage.out
