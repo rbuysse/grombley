@@ -2,3 +2,7 @@ bind = "0.0.0.0:3000"
 debug = false
 serve_path = "/i/"
 upload_path = "./uploads/"
+
+# Optional: Base URL for redirects after upload (e.g., "https://example.com")
+# If not set, will use the request host
+# redirect_url = ""

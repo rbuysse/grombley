@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 	"text/template"
 )
 
@@ -99,11 +100,22 @@ func urlUploadHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func constructFileURL(r *http.Request, filename string) string {
-	scheme := "http://"
-	if r.TLS != nil {
-		scheme = "https://"
+	// Use configured redirect URL if set, otherwise use request host
+	baseURL := config.RedirectURL
+	if baseURL == "" {
+		scheme := "http://"
+		if r.TLS != nil {
+			scheme = "https://"
+		}
+		baseURL = fmt.Sprintf("%s%s", scheme, r.Host)
+	} else {
+		// Ensure redirect URL has a scheme
+		if !strings.HasPrefix(baseURL, "http://") && !strings.HasPrefix(baseURL, "https://") {
+			// Default to https if no scheme provided
+			baseURL = "https://" + baseURL
+		}
 	}
-	return fmt.Sprintf("%s%s%s%s", scheme, r.Host, config.ServePath, filename)
+	return fmt.Sprintf("%s%s%s", baseURL, config.ServePath, filename)
 }
 
 func respondWithFileURL(w http.ResponseWriter, r *http.Request, url string) error {

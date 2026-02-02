@@ -37,6 +37,10 @@ func TestConfig(t *testing.T) {
 			t.Errorf("Expected default upload_path to be ./uploads/, but got %s", config.UploadPath)
 		}
 
+		if config.RedirectURL != "" {
+			t.Errorf("Expected default redirect_url to be empty, but got %s", config.RedirectURL)
+		}
+
 		if config.Debug {
 			t.Errorf("Expected default debug to be false, but got true")
 		}
@@ -349,6 +353,103 @@ upload_path = "../../grims"
 
 		if config.UploadPath != expectedUploadPath {
 			t.Errorf("Expected upload_path to be %s, but got %s", expectedUploadPath, config.UploadPath)
+		}
+	})
+
+	t.Run("load redirect_url from config file", func(t *testing.T) {
+		oldArgs := os.Args
+		defer func() { os.Args = oldArgs }()
+		tempFile, err := os.CreateTemp("", "config-redirect-*.toml")
+		if err != nil {
+			t.Fatalf("Error creating temporary file: %v", err)
+		}
+		defer os.Remove(tempFile.Name())
+
+		configContent := `
+bind = "localhost:8080"
+redirect_url = "https://cdn.example.com"
+`
+		if _, err := tempFile.Write([]byte(configContent)); err != nil {
+			t.Fatalf("Error writing to temporary file: %v", err)
+		}
+
+		config := loadConfig(tempFile.Name())
+
+		if config.RedirectURL != "https://cdn.example.com" {
+			t.Errorf("Expected redirect_url to be https://cdn.example.com, but got %s", config.RedirectURL)
+		}
+
+		if config.Bind != "localhost:8080" {
+			t.Errorf("Expected bind to be localhost:8080, but got %s", config.Bind)
+		}
+	})
+
+	t.Run("redirect_url defaults to empty when not in config", func(t *testing.T) {
+		tempFile, err := os.CreateTemp("", "config-no-redirect-*.toml")
+		if err != nil {
+			t.Fatalf("Error creating temporary file: %v", err)
+		}
+		defer os.Remove(tempFile.Name())
+
+		configContent := `bind = "localhost:8080"`
+		if _, err := tempFile.Write([]byte(configContent)); err != nil {
+			t.Fatalf("Error writing to temporary file: %v", err)
+		}
+
+		config := loadConfig(tempFile.Name())
+
+		if config.RedirectURL != "" {
+			t.Errorf("Expected redirect_url to be empty (default), but got %s", config.RedirectURL)
+		}
+	})
+
+	t.Run("cli flag redirect-url overrides config file", func(t *testing.T) {
+		oldArgs := os.Args
+		defer func() { os.Args = oldArgs }()
+		tempFile, err := os.CreateTemp("", "config-redirect-override-*.toml")
+		if err != nil {
+			t.Fatalf("Error creating temporary file: %v", err)
+		}
+		defer os.Remove(tempFile.Name())
+
+		configContent := `
+bind = "localhost:9000"
+redirect_url = "https://old.example.com"
+`
+		if _, err := tempFile.Write([]byte(configContent)); err != nil {
+			t.Fatalf("Error writing to temporary file: %v", err)
+		}
+
+		flag.CommandLine = flag.NewFlagSet(os.Args[0], flag.ExitOnError)
+		os.Args = []string{"cmd", "--config", tempFile.Name(), "--redirect-url", "https://new.example.com"}
+
+		config := GenerateConfig()
+
+		if config.RedirectURL != "https://new.example.com" {
+			t.Errorf("Expected redirect_url from CLI flag to be https://new.example.com, but got %s", config.RedirectURL)
+		}
+
+		if config.Bind != "localhost:9000" {
+			t.Errorf("Expected bind from config file to be localhost:9000, but got %s", config.Bind)
+		}
+	})
+
+	t.Run("cli flag redirect-url without config file", func(t *testing.T) {
+		oldArgs := os.Args
+		defer func() { os.Args = oldArgs }()
+
+		flag.CommandLine = flag.NewFlagSet(os.Args[0], flag.ExitOnError)
+		os.Args = []string{"cmd", "--redirect-url", "https://mycdn.example.com"}
+
+		config := GenerateConfig()
+
+		if config.RedirectURL != "https://mycdn.example.com" {
+			t.Errorf("Expected redirect_url from CLI flag to be https://mycdn.example.com, but got %s", config.RedirectURL)
+		}
+
+		// Should still have default values for other fields
+		if config.Bind != "0.0.0.0:3000" {
+			t.Errorf("Expected default bind, but got %s", config.Bind)
 		}
 	})
 }

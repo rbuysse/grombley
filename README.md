@@ -31,10 +31,13 @@ or command-line flags. An example config file is provided at
 Command-line flags override values in the config file. If no config file is
 found, defaults are used.
 
-| Option         | TOML Key     | CLI Flag(s)                | Default Value      | Description                           |
-|----------------|--------------|----------------------------|--------------------|---------------------------------------|
-| Config file    | —            | `-c`, `--config`           | `config.toml`      | Path to the configuration file        |
-| Bind address   | `bind`       | `-b`, `--bind`             | `0.0.0.0:3000`     | Address and port to run the server on |
-| Debug mode     | `debug`      | `--debug`                  | `false`            | Enable debug mode                     |
-| Serve path     | `serve_path` | `-s`, `--serve-path`       | `/i/`              | Path to serve images from             |
-| Upload path    | `upload_path`| `-u`, `--upload-path`      | `./uploads/`       | Path to store uploaded images         |
+| Option         | TOML Key       | CLI Flag(s)                | Default Value      | Description                           |
+|----------------|----------------|----------------------------|--------------------|---------------------------------------|
+| Config file    | —              | `-c`, `--config`           | `config.toml`      | Path to the configuration file        |
+| Bind address   | `bind`         | `-b`, `--bind`             | `0.0.0.0:3000`     | Address and port to run the server on |
+| Debug mode     | `debug`        | `--debug`                  | `false`            | Enable debug mode                     |
+| Redirect URL   | `redirect_url` | `-r`, `--redirect-url`     | _(none)_           | Base URL for uploaded file redirects  |
+| Serve path     | `serve_path`   | `-s`, `--serve-path`       | `/i/`              | Path to serve images from             |
+| Upload path    | `upload_path`  | `-u`, `--upload-path`      | `./uploads/`       | Path to store uploaded images         |
+
+**Note:** When `redirect_url` is not set, the request host is used. URLs without a scheme automatically default to `https://`.
