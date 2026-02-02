@@ -14,15 +14,17 @@ import (
 const usage = `Usage:
   -b, --bind           address:port to run the server on (default: 0.0.0.0:3000)
   -c, --config         Path to a configuration file (default: config.toml)
+  -r, --redirect-url   Base URL for redirects after upload (default: none)
   -s, --serve-path     Path to serve images from (default: /i/)
   -u, --upload-path    Path to store uploaded images (default: ./uploads/)`
 
 // Default config
 func defaultConfig() Config {
 	return Config{
-		Bind:       "0.0.0.0:3000",
-		ServePath:  "/i/",
-		UploadPath: "./uploads/",
+		Bind:        "0.0.0.0:3000",
+		RedirectURL: "",
+		ServePath:   "/i/",
+		UploadPath:  "./uploads/",
 	}
 }
 
@@ -31,6 +33,7 @@ func GenerateConfig() Config {
 	var configFile string
 	var configFileSet bool
 	var debugOpt bool
+	var redirectURLOpt string
 	var servePathOpt string
 	var uploadPathOpt string
 
@@ -39,6 +42,8 @@ func GenerateConfig() Config {
 	flag.StringVar(&configFile, "c", "", "Path to the configuration file")
 	flag.StringVar(&configFile, "config", "", "Path to the configuration file")
 	flag.BoolVar(&debugOpt, "debug", false, "enable debug mode")
+	flag.StringVar(&redirectURLOpt, "r", "", "Base URL for redirects after upload")
+	flag.StringVar(&redirectURLOpt, "redirect-url", "", "Base URL for redirects after upload")
 	flag.StringVar(&servePathOpt, "s", "", "Path to serve images from")
 	flag.StringVar(&servePathOpt, "serve-path", "", "Path to serve images from")
 	flag.StringVar(&uploadPathOpt, "u", "", "Path to store uploaded images")
@@ -79,9 +84,10 @@ func GenerateConfig() Config {
 
 	// Override the config values with the command-line flags
 	options := map[*string]*string{
-		&bindOpt:       &config.Bind,
-		&servePathOpt:  &config.ServePath,
-		&uploadPathOpt: &config.UploadPath,
+		&bindOpt:        &config.Bind,
+		&redirectURLOpt: &config.RedirectURL,
+		&servePathOpt:   &config.ServePath,
+		&uploadPathOpt:  &config.UploadPath,
 	}
 
 	for option, configField := range options {
@@ -116,10 +122,11 @@ func loadConfig(configFile string) Config {
 
 	// Temporary struct to decode TOML file
 	var tempConfig struct {
-		Bind       string `toml:"bind"`
-		Debug      bool   `toml:"debug"`
-		ServePath  string `toml:"serve_path"`
-		UploadPath string `toml:"upload_path"`
+		Bind        string `toml:"bind"`
+		Debug       bool   `toml:"debug"`
+		RedirectURL string `toml:"redirect_url"`
+		ServePath   string `toml:"serve_path"`
+		UploadPath  string `toml:"upload_path"`
 	}
 
 	if _, err := toml.DecodeFile(configFile, &tempConfig); err != nil {
@@ -130,14 +137,17 @@ func loadConfig(configFile string) Config {
 	if tempConfig.Bind != "" {
 		config.Bind = tempConfig.Bind
 	}
+	if tempConfig.Debug {
+		config.Debug = true
+	}
+	if tempConfig.RedirectURL != "" {
+		config.RedirectURL = tempConfig.RedirectURL
+	}
 	if tempConfig.ServePath != "" {
 		config.ServePath = tempConfig.ServePath
 	}
 	if tempConfig.UploadPath != "" {
 		config.UploadPath = tempConfig.UploadPath
-	}
-	if tempConfig.Debug {
-		config.Debug = true
 	}
 
 	return config
