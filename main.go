@@ -14,10 +14,11 @@ import (
 var version = "dev"
 
 type Config struct {
-	Bind       string `toml:"bind"`
-	Debug      bool   `toml:"debug"`
-	ServePath  string `toml:"serve_path"`
-	UploadPath string `toml:"upload_path"`
+	Bind        string `toml:"bind"`
+	Debug       bool   `toml:"debug"`
+	RedirectURL string `toml:"redirect_url"`
+	ServePath   string `toml:"serve_path"`
+	UploadPath  string `toml:"upload_path"`
 }
 
 var config Config
