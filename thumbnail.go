@@ -21,6 +21,8 @@ func serveThumbnailImageHandler(w http.ResponseWriter, r *http.Request) {
 	imagePath := filepath.Join(config.UploadPath, imageName)
 	imageData, err := os.ReadFile(imagePath)
 	if err != nil {
+		// File doesn't exist - remove any stale hash entries
+		removeHashForFile(imageName)
 		notfoundHandler(w)
 		return
 	}

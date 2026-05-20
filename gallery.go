@@ -78,45 +78,62 @@ func randfilename(length int, extension string) string {
 }
 
 func writeFileAndReturnURL(w http.ResponseWriter, r *http.Request, file io.Reader) error {
+	// Buffer the entire file in memory so we can hash it and still use it
+	fileData, err := io.ReadAll(file)
+	if err != nil {
+		return err
+	}
 
-	hash, err := computeFileHash(file)
+	// Compute hash from buffered data
+	hash, err := computeFileHash(bytes.NewReader(fileData))
 	if err != nil {
 		return err
 	}
 	value, exists := imageHashExists(hash)
 
 	if exists {
-		if config.Debug {
-			fmt.Printf("Hash %s exists: %s\n", hash, value)
+		// Verify the file actually exists on disk
+		filePath := filepath.Join(config.UploadPath, value)
+		if _, err := os.Stat(filePath); err == nil {
+			// File exists, return existing URL
+			if config.Debug {
+				fmt.Printf("Hash %s exists: %s\n", hash, value)
+			}
+			fileURL := constructFileURL(r, value)
+			return respondWithFileURL(w, r, fileURL)
+		} else {
+			// File was deleted, remove stale hash and proceed with upload
+			if config.Debug {
+				fmt.Printf("Hash %s exists but file %s is missing, removing stale hash\n", hash, value)
+			}
+			removeHash(hash)
 		}
-		fileURL := constructFileURL(r, value)
-		return respondWithFileURL(w, r, fileURL)
-	} else {
-		if config.Debug {
-			fmt.Printf("Hash %s does not exist\n", hash)
-		}
-		ext, fileReader, err := mimeTypeHandler.detectContentType(file)
-		if err != nil {
-			http.Error(w, "Unsupported file type", http.StatusBadRequest)
-			return err
-		}
-
-		genfilename := randfilename(6, ext)
-		filepath := filepath.Join(config.UploadPath, genfilename)
-
-		if err := processAndSaveImage(filepath, fileReader, ext); err != nil {
-			http.Error(w, "Error processing file", http.StatusInternalServerError)
-			return err
-		}
-
-		// Add hash to map (thread-safe)
-		hashesMutex.Lock()
-		hashes[hash] = genfilename
-		hashesMutex.Unlock()
-
-		fileURL := constructFileURL(r, genfilename)
-		return respondWithFileURL(w, r, fileURL)
 	}
+
+	if config.Debug {
+		fmt.Printf("Hash %s does not exist\n", hash)
+	}
+	ext, fileReader, err := mimeTypeHandler.detectContentType(bytes.NewReader(fileData))
+	if err != nil {
+		http.Error(w, "Unsupported file type", http.StatusBadRequest)
+		return err
+	}
+
+	genfilename := randfilename(6, ext)
+	filepath := filepath.Join(config.UploadPath, genfilename)
+
+	if err := processAndSaveImage(filepath, fileReader, ext); err != nil {
+		http.Error(w, "Error processing file", http.StatusInternalServerError)
+		return err
+	}
+
+	// Add hash to map (thread-safe)
+	hashesMutex.Lock()
+	hashes[hash] = genfilename
+	hashesMutex.Unlock()
+
+	fileURL := constructFileURL(r, genfilename)
+	return respondWithFileURL(w, r, fileURL)
 }
 
 func createAndCopyFile(filepath string, src io.Reader) error {

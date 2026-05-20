@@ -63,3 +63,22 @@ func imageHashExists(hash string) (string, bool) {
 	}
 	return "", false
 }
+
+// removeHash removes a hash entry from the map (thread-safe)
+func removeHash(hash string) {
+	hashesMutex.Lock()
+	defer hashesMutex.Unlock()
+	delete(hashes, hash)
+}
+
+// removeHashForFile removes hash entry for a given filename (thread-safe)
+func removeHashForFile(filename string) {
+	hashesMutex.Lock()
+	defer hashesMutex.Unlock()
+	for hash, name := range hashes {
+		if name == filename {
+			delete(hashes, hash)
+			return
+		}
+	}
+}

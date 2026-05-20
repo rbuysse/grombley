@@ -54,6 +54,11 @@ func serveImageHandler(w http.ResponseWriter, r *http.Request) {
 	// Open the image file.
 	imageFile, err := os.Open(imagePath)
 	if err != nil {
+		// File doesn't exist - remove any stale hash entries
+		if config.Debug {
+			fmt.Printf("File %s not found, removing stale hash entries\n", imageName)
+		}
+		removeHashForFile(imageName)
 		notfoundHandler(w)
 		return
 	}
