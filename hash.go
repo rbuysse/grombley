@@ -56,6 +56,8 @@ func computeFileHash(fileReader io.Reader) (string, error) {
 }
 
 func imageHashExists(hash string) (string, bool) {
+	hashesMutex.RLock()
+	defer hashesMutex.RUnlock()
 	if value, ok := hashes[hash]; ok {
 		return value, true
 	}

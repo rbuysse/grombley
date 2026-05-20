@@ -29,7 +29,10 @@ func livezHandler(w http.ResponseWriter, req *http.Request) {
 	fmt.Fprintf(w, "Server is running on http://%s\n", config.Bind)
 	fmt.Fprintf(w, "Serving images at %s\n", config.ServePath)
 	fmt.Fprintf(w, "Upload path is %s\n", config.UploadPath)
-	fmt.Fprintf(w, "%d image hashes in memory\n", len(hashes))
+	hashesMutex.RLock()
+	hashCount := len(hashes)
+	hashesMutex.RUnlock()
+	fmt.Fprintf(w, "%d image hashes in memory\n", hashCount)
 }
 
 func readyzHandler(w http.ResponseWriter, req *http.Request) {

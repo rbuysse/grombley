@@ -109,7 +109,10 @@ func writeFileAndReturnURL(w http.ResponseWriter, r *http.Request, file io.Reade
 			return err
 		}
 
+		// Add hash to map (thread-safe)
+		hashesMutex.Lock()
 		hashes[hash] = genfilename
+		hashesMutex.Unlock()
 
 		fileURL := constructFileURL(r, genfilename)
 		return respondWithFileURL(w, r, fileURL)

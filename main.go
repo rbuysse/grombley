@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"path"
+	"sync"
 )
 
 type Config struct {
@@ -19,6 +20,7 @@ type Config struct {
 
 var config Config
 var hashes map[string]string
+var hashesMutex sync.RWMutex
 var mimeTypeHandler MimeTypeHandler
 
 //go:embed templates
