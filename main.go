@@ -36,11 +36,8 @@ func main() {
 		fmt.Printf("Creating upload directory at %s\n", config.UploadPath)
 		os.MkdirAll(config.UploadPath, os.ModePerm)
 	}
-	// Hash existing uploads in the background so the server starts listening
-	// right away instead of after a full scan of the upload directory. This is
-	// safe because every read and write of hashes goes through hashesMutex.
-	// The only cost: an upload matching a file the scan hasn't reached yet is
-	// saved as a duplicate instead of being deduplicated.
+	// Existing files become available for deduplication after the full scan is
+	// merged under hashesMutex. Until then, uploads can create duplicates.
 	go loadHashes(config.UploadPath)
 
 	// Create a new HTTP router

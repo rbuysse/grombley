@@ -9,7 +9,7 @@ import (
 	"testing"
 )
 
-func TestLoadHashesKeepsEntriesAddedDuringScan(t *testing.T) {
+func TestLoadHashesPreservesExistingEntries(t *testing.T) {
 	oldHashes := hashes
 	defer func() { hashes = oldHashes }()
 
@@ -31,13 +31,12 @@ func TestLoadHashesKeepsEntriesAddedDuringScan(t *testing.T) {
 	jpgHash, _ := computeFileHash(bytes.NewReader(imgData))
 	pngHash, _ := computeFileHash(bytes.NewReader(pngData))
 
-	// Simulate uploads that landed while the scan was running
 	hashes = map[string]string{jpgHash: "live.jpg", "abc123": "other.jpg"}
 
 	loadHashes(dir)
 
 	if got := hashes[jpgHash]; got != "live.jpg" {
-		t.Errorf("expected entry added during scan to be kept, got %q", got)
+		t.Errorf("expected existing entry to be kept, got %q", got)
 	}
 	if got := hashes["abc123"]; got != "other.jpg" {
 		t.Errorf("expected unrelated entry to be kept, got %q", got)

@@ -6,11 +6,16 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 )
 
 func buildHashDict(imageDir string) (map[string]string, error) {
 	hashes := make(map[string]string)
 	err := filepath.Walk(imageDir, func(path string, info os.FileInfo, err error) error {
+		// A temporary upload may disappear when it is published during the walk.
+		if strings.HasPrefix(filepath.Base(path), uploadTempPrefix) {
+			return nil
+		}
 		if err != nil {
 			return err
 		}
