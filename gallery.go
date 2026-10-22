@@ -136,17 +136,29 @@ func writeFileAndReturnURL(w http.ResponseWriter, r *http.Request, file io.Reade
 	return respondWithFileURL(w, r, fileURL)
 }
 
-func createAndCopyFile(filepath string, src io.Reader) error {
-	newFile, err := os.Create(filepath)
+const uploadTempPrefix = ".upload-"
+
+func createAndCopyFile(filename string, src io.Reader) error {
+	// Publish only complete files so the startup scan cannot hash partial uploads.
+	newFile, err := os.CreateTemp(filepath.Dir(filename), uploadTempPrefix)
 	if err != nil {
 		return fmt.Errorf("error creating the file: %w", err)
 	}
+	defer os.Remove(newFile.Name())
 	defer newFile.Close()
 
 	if _, err = io.Copy(newFile, src); err != nil {
 		return fmt.Errorf("error copying file data: %w", err)
 	}
-
+	if err := newFile.Chmod(0644); err != nil {
+		return fmt.Errorf("error setting file permissions: %w", err)
+	}
+	if err := newFile.Close(); err != nil {
+		return fmt.Errorf("error closing the file: %w", err)
+	}
+	if err := os.Rename(newFile.Name(), filename); err != nil {
+		return fmt.Errorf("error publishing the file: %w", err)
+	}
 	return nil
 }
 

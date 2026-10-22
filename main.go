@@ -19,7 +19,7 @@ type Config struct {
 }
 
 var config Config
-var hashes map[string]string
+var hashes = make(map[string]string)
 var hashesMutex sync.RWMutex
 var mimeTypeHandler MimeTypeHandler
 
@@ -36,19 +36,9 @@ func main() {
 		fmt.Printf("Creating upload directory at %s\n", config.UploadPath)
 		os.MkdirAll(config.UploadPath, os.ModePerm)
 	}
-	var err error
-
-	hashesChan := make(chan map[string]string)
-	errChan := make(chan error)
-
-	go func() {
-		hashes, err := buildHashDict(config.UploadPath)
-		if err != nil {
-			errChan <- err
-			return
-		}
-		hashesChan <- hashes
-	}()
+	// Existing files become available for deduplication after the full scan is
+	// merged under hashesMutex. Until then, uploads can create duplicates.
+	go loadHashes(config.UploadPath)
 
 	// Create a new HTTP router
 	http.HandleFunc("/livez", livezHandler)
@@ -81,19 +71,6 @@ func main() {
 		"Upload path is %s\n",
 
 		config.Bind, config.ServePath, config.UploadPath)
-
-	select {
-	case hashes = <-hashesChan:
-	case err = <-errChan:
-		fmt.Printf("Error: %v\n", err)
-		return
-	}
-
-	if config.Debug {
-		for hash, filename := range hashes {
-			fmt.Printf("MD5 Hash: %s, Filename: %s\n", hash, filename)
-		}
-	}
 
 	log.Fatal(http.ListenAndServe(config.Bind, nil))
 }

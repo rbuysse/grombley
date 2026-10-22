@@ -2,9 +2,11 @@ package main
 
 import (
 	"bytes"
+	"errors"
 	"io"
 	"net/http/httptest"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -107,5 +109,107 @@ func TestWriteFileAndReturnURL_StaleHash(t *testing.T) {
 	}
 	if !strings.Contains(string(body), newFilename) {
 		t.Errorf("response URL should reference the new file %q: %s", newFilename, body)
+	}
+}
+
+type uploadTestReader func([]byte) (int, error)
+
+func (read uploadTestReader) Read(p []byte) (int, error) {
+	return read(p)
+}
+
+func TestBuildHashDictSkipsUnfinishedUpload(t *testing.T) {
+	dir := t.TempDir()
+	filename := filepath.Join(dir, "finished.gif")
+	data := []byte("upload contents")
+	started := make(chan struct{})
+	release := make(chan struct{})
+	done := make(chan error, 1)
+	read := false
+	go func() {
+		done <- createAndCopyFile(filename, uploadTestReader(func(p []byte) (int, error) {
+			if !read {
+				read = true
+				return copy(p, data), nil
+			}
+			close(started)
+			<-release
+			return 0, io.EOF
+		}))
+	}()
+	select {
+	case <-started:
+	case err := <-done:
+		t.Fatalf("upload ended before it could be scanned: %v", err)
+	}
+	defer func() {
+		close(release)
+		if err := <-done; err != nil {
+			t.Errorf("upload failed: %v", err)
+		}
+	}()
+
+	if _, err := os.Stat(filename); !os.IsNotExist(err) {
+		t.Errorf("unfinished upload is visible: %v", err)
+	}
+	built, err := buildHashDict(dir)
+	if err != nil {
+		t.Fatalf("scan failed: %v", err)
+	}
+	if len(built) != 0 {
+		t.Errorf("scan included unfinished upload: %v", built)
+	}
+}
+
+func TestCreateAndCopyFilePublishesCompleteUpload(t *testing.T) {
+	dir := t.TempDir()
+	filename := filepath.Join(dir, "finished.gif")
+	data := []byte("upload contents")
+	if err := createAndCopyFile(filename, bytes.NewReader(data)); err != nil {
+		t.Fatal(err)
+	}
+	got, err := os.ReadFile(filename)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(got, data) {
+		t.Errorf("file contents = %q, want %q", got, data)
+	}
+	built, err := buildHashDict(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	hash, err := computeFileHash(bytes.NewReader(data))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(built) != 1 || built[hash] != "finished.gif" {
+		t.Errorf("scan did not find completed upload: %v", built)
+	}
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(entries) != 1 {
+		t.Errorf("temporary file left after upload: %v", entries)
+	}
+}
+
+func TestCreateAndCopyFileCleansUpFailedUpload(t *testing.T) {
+	dir := t.TempDir()
+	filename := filepath.Join(dir, "failed.gif")
+	readErr := errors.New("upload interrupted")
+	src := io.MultiReader(strings.NewReader("partial contents"), uploadTestReader(func([]byte) (int, error) {
+		return 0, readErr
+	}))
+	if err := createAndCopyFile(filename, src); !errors.Is(err, readErr) {
+		t.Fatalf("expected upload error, got %v", err)
+	}
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(entries) != 0 {
+		t.Errorf("files left after failed upload: %v", entries)
 	}
 }
