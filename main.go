@@ -19,7 +19,7 @@ type Config struct {
 }
 
 var config Config
-var hashes map[string]string
+var hashes = make(map[string]string)
 var hashesMutex sync.RWMutex
 var mimeTypeHandler MimeTypeHandler
 
@@ -36,19 +36,12 @@ func main() {
 		fmt.Printf("Creating upload directory at %s\n", config.UploadPath)
 		os.MkdirAll(config.UploadPath, os.ModePerm)
 	}
-	var err error
-
-	hashesChan := make(chan map[string]string)
-	errChan := make(chan error)
-
-	go func() {
-		hashes, err := buildHashDict(config.UploadPath)
-		if err != nil {
-			errChan <- err
-			return
-		}
-		hashesChan <- hashes
-	}()
+	// Hash existing uploads in the background so the server starts listening
+	// right away instead of after a full scan of the upload directory. This is
+	// safe because every read and write of hashes goes through hashesMutex.
+	// The only cost: an upload matching a file the scan hasn't reached yet is
+	// saved as a duplicate instead of being deduplicated.
+	go loadHashes(config.UploadPath)
 
 	// Create a new HTTP router
 	http.HandleFunc("/livez", livezHandler)
@@ -81,19 +74,6 @@ func main() {
 		"Upload path is %s\n",
 
 		config.Bind, config.ServePath, config.UploadPath)
-
-	select {
-	case hashes = <-hashesChan:
-	case err = <-errChan:
-		fmt.Printf("Error: %v\n", err)
-		return
-	}
-
-	if config.Debug {
-		for hash, filename := range hashes {
-			fmt.Printf("MD5 Hash: %s, Filename: %s\n", hash, filename)
-		}
-	}
 
 	log.Fatal(http.ListenAndServe(config.Bind, nil))
 }

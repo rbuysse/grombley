@@ -64,6 +64,32 @@ func imageHashExists(hash string) (string, bool) {
 	return "", false
 }
 
+// loadHashes runs while the server is already handling requests, so it merges
+// into the shared map under the mutex instead of replacing it. Entries added by
+// uploads during the scan are kept.
+func loadHashes(imageDir string) {
+	built, err := buildHashDict(imageDir)
+	if err != nil {
+		fmt.Printf("Error building hash dict, only new uploads will be deduplicated: %v\n", err)
+		return
+	}
+
+	hashesMutex.Lock()
+	for hash, filename := range built {
+		if _, ok := hashes[hash]; !ok {
+			hashes[hash] = filename
+		}
+	}
+	hashesMutex.Unlock()
+
+	if config.Debug {
+		for hash, filename := range built {
+			fmt.Printf("MD5 Hash: %s, Filename: %s\n", hash, filename)
+		}
+	}
+	fmt.Printf("Loaded %d image hashes\n", len(built))
+}
+
 // removeHash removes a hash entry from the map (thread-safe)
 func removeHash(hash string) {
 	hashesMutex.Lock()
